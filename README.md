@@ -1,5 +1,6 @@
 # OpenDataLens — AI-Powered Dataset Explorer & Model Evaluation Platform
 
+[![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20App-black?style=flat&logo=vercel)](https://opendatalens-app.vercel.app)
 [![Next.js 14](https://img.shields.io/badge/Next.js-14%20App%20Router-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-1.5+-F7931E?style=flat&logo=scikit-learn)](https://scikit-learn.org/)
