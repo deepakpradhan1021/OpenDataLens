@@ -1,0 +1,229 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Retro Dark Canvas */
+    --background: 240 7% 5%;       /* #0C0C0E */
+    --foreground: 0 0% 98%;        /* #FAFAFA */
+    
+    /* Retro OS Window Chassis (Light Silver / Retro Gray) */
+    --retro-window: 220 7% 93%;    /* #ECEEF1 */
+    --retro-window-fg: 240 10% 4%; /* #0B0B0C */
+    --retro-window-border: 0 0% 0%;/* #000000 stark border */
+    
+    /* Electric Blue Accent (Matches Reference) */
+    --retro-blue: 221 100% 55%;    /* #1864FF */
+    --retro-blue-fg: 0 0% 100%;
+    
+    /* Retro Mint Green Accent (Matches [Visit Resource] Pill) */
+    --retro-mint: 142 58% 76%;     /* #9AE6B4 */
+    --retro-mint-fg: 158 64% 16%;
+    
+    /* Standard Theme Variables */
+    --card: 240 6% 9%;             /* #141417 */
+    --card-foreground: 0 0% 98%;
+    --popover: 220 7% 93%;
+    --popover-foreground: 240 10% 4%;
+    --primary: 221 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 4% 18%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 221 100% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5% 18%;
+    --input: 240 5% 18%;
+    --ring: 221 100% 55%;
+    --radius: 0px; /* Sharp 90s retro edges */
+  }
+
+  .light {
+    --background: 220 14% 96%;
+    --foreground: 240 10% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 4%;
+    --border: 240 6% 85%;
+    --input: 240 6% 85%;
+    --muted: 240 5% 92%;
+    --muted-foreground: 240 4% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-[#1864FF] selection:text-white;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  
+  /* Monospace overrides for technical microcopy */
+  .font-mono-tech {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+}
+
+/* Retro Dotted Background */
+.bg-retro-grid {
+  background-size: 32px 32px;
+  background-image: 
+    radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+}
+
+.light .bg-retro-grid {
+  background-image: 
+    radial-gradient(circle, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+}
+
+/* Retro Window Chassis */
+.retro-window-light {
+  background-color: #EDEEF0;
+  color: #0C0C0D;
+  border: 1px solid #000000;
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.85);
+}
+
+.retro-window-dark {
+  background-color: #121215;
+  color: #F4F4F5;
+  border: 1px solid #27272A;
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.6);
+}
+
+/* Retro Tag Pills (Matches Reference Pill Style) */
+.retro-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: #FFFFFF;
+  color: #000000;
+  border: 1px solid #000000;
+  transition: all 0.12s ease-in-out;
+  cursor: pointer;
+  user-select: none;
+}
+
+.retro-pill:hover {
+  background-color: #F4F4F5;
+  transform: translateY(-1px);
+}
+
+.retro-pill.active {
+  background-color: #1864FF !important;
+  color: #FFFFFF !important;
+  border-color: #1864FF !important;
+}
+
+/* Retro Button */
+.btn-retro {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid #000000;
+  background-color: #FFFFFF;
+  color: #000000;
+  box-shadow: 2px 2px 0px 0px #000000;
+  transition: all 0.1s ease;
+}
+
+.btn-retro:hover {
+  background-color: #F4F4F5;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px 0px #000000;
+}
+
+.btn-retro:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px 0px #000000;
+}
+
+.btn-retro-blue {
+  background-color: #1864FF;
+  color: #FFFFFF;
+  border-color: #003ECC;
+  box-shadow: 2px 2px 0px 0px #002B99;
+}
+
+.btn-retro-blue:hover {
+  background-color: #2D74FF;
+  box-shadow: 3px 3px 0px 0px #002B99;
+}
+
+.btn-retro-dark {
+  background-color: #18181B;
+  color: #FFFFFF;
+  border-color: #3F3F46;
+  box-shadow: 2px 2px 0px 0px #000000;
+}
+
+.btn-retro-dark:hover {
+  background-color: #27272A;
+  border-color: #52525B;
+}
+
+/* Retro Speech Bubble Tooltip (Matches Image 3) */
+.retro-tooltip-blue {
+  background-color: #1864FF;
+  color: #FFFFFF;
+  position: relative;
+  border: 1px solid #0044CC;
+  box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 0.5);
+}
+
+.retro-tooltip-blue::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 28px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #1864FF;
+}
+
+/* Pixel Font Outline Simulation */
+.text-pixel-wireframe {
+  font-family: ui-monospace, monospace;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: transparent;
+  -webkit-text-stroke: 1.5px #FFFFFF;
+  text-shadow: 2px 2px 0px rgba(24, 100, 255, 0.4);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0C0C0E;
+  border-left: 1px solid #27272A;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272A;
+  border: 1px solid #3F3F46;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3F3F46;
+}

@@ -121,7 +121,9 @@ def load_csv_dataset(
     delimiters_to_try = [",", ";", "\t", "|"]
 
     # Read bytes or string content
-    if hasattr(file_or_path, "read"):
+    if isinstance(file_or_path, bytes):
+        content = file_or_path
+    elif hasattr(file_or_path, "read"):
         content = file_or_path.read()
     else:
         with open(file_or_path, "rb") as f:
