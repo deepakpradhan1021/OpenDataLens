@@ -16,29 +16,29 @@ import {
   Check,
   X,
   Terminal,
+  Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { TargetCandidatesResponse, JobStatusResponse } from "@/lib/types";
 import { EmptyState } from "@/components/empty-state";
 import { RetroDock } from "@/components/retro-dock";
-import { RetroRobotIcon } from "@/components/retro-icons";
 
 const CLASSIFICATION_MODELS = [
-  { id: "logistic_regression", name: "Logistic Regression", default: true },
-  { id: "random_forest", name: "Random Forest Classifier", default: true },
-  { id: "gradient_boosting", name: "Gradient Boosting Classifier", default: true },
-  { id: "decision_tree", name: "Decision Tree Classifier", default: true },
-  { id: "k_nearest_neighbors", name: "K-Nearest Neighbors", default: false },
-  { id: "support_vector_machine", name: "Support Vector Classifier (SVC)", default: false },
+  { id: "logistic_regression", name: "Logistic Regression", desc: "Linear baseline with L2 penalty", default: true },
+  { id: "random_forest", name: "Random Forest Classifier", desc: "Ensemble of 100 decision trees", default: true },
+  { id: "gradient_boosting", name: "Gradient Boosting", desc: "Sequential boosting on residual errors", default: true },
+  { id: "decision_tree", name: "Decision Tree", desc: "Non-parametric tree partitioning", default: true },
+  { id: "k_nearest_neighbors", name: "K-Nearest Neighbors", desc: "Instance-based majority voting (k=5)", default: false },
+  { id: "support_vector_machine", name: "Support Vector (SVC)", desc: "Radial Basis Function (RBF) margin", default: false },
 ];
 
 const REGRESSION_MODELS = [
-  { id: "ridge_regression", name: "Ridge Regression", default: true },
-  { id: "linear_regression", name: "Linear Regression", default: true },
-  { id: "random_forest", name: "Random Forest Regressor", default: true },
-  { id: "gradient_boosting", name: "Gradient Boosting Regressor", default: true },
-  { id: "decision_tree", name: "Decision Tree Regressor", default: false },
-  { id: "k_nearest_neighbors", name: "K-Nearest Neighbors Regressor", default: false },
+  { id: "ridge_regression", name: "Ridge Regression", desc: "L2 regularized linear model", default: true },
+  { id: "linear_regression", name: "Linear Regression", desc: "Ordinary least squares estimator", default: true },
+  { id: "random_forest", name: "Random Forest Regressor", desc: "Bagged trees with mean aggregation", default: true },
+  { id: "gradient_boosting", name: "Gradient Boosting Regressor", desc: "Stage-wise additive residual modeling", default: true },
+  { id: "decision_tree", name: "Decision Tree Regressor", desc: "Partitioning by mean squared error", default: false },
+  { id: "k_nearest_neighbors", name: "KNN Regressor", desc: "Distance-weighted average prediction", default: false },
 ];
 
 export default function StudioPage() {
@@ -157,7 +157,6 @@ export default function StudioPage() {
 
       setJobId(resp.job_id);
 
-      // Poll job status every 750ms
       const interval = setInterval(async () => {
         try {
           const status = await api.getJobStatus(resp.job_id);
@@ -166,10 +165,9 @@ export default function StudioPage() {
           if (status.status === "completed") {
             clearInterval(interval);
             setIsTraining(false);
-            // Brief delay then route to comparison leaderboard
             setTimeout(() => {
               router.push("/comparison");
-            }, 1200);
+            }, 1000);
           } else if (status.status === "failed") {
             clearInterval(interval);
             setIsTraining(false);
@@ -189,11 +187,11 @@ export default function StudioPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0C0C0E] text-white flex items-center justify-center p-8 bg-retro-grid">
-        <div className="retro-window-dark p-8 text-center space-y-3 border border-zinc-800">
-          <Loader2 className="w-6 h-6 animate-spin text-[#1864FF] mx-auto" />
-          <div className="font-mono text-xs uppercase tracking-wider text-zinc-300">
-            INTERROGATING DATA SCHEMA & COMPUTING TARGET CANDIDATES...
+      <div className="min-h-screen bg-[#09090B] text-zinc-100 flex items-center justify-center p-8">
+        <div className="p-8 rounded-2xl border border-zinc-800 bg-[#101014] text-center space-y-3">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
+          <div className="text-xs font-mono text-zinc-400">
+            Analyzing dataset schema and computing candidate targets...
           </div>
         </div>
       </div>
@@ -202,17 +200,23 @@ export default function StudioPage() {
 
   if (!candidates) {
     return (
-      <div className="min-h-screen bg-[#0C0C0E] text-white p-8 bg-retro-grid">
-        <div className="max-w-xl mx-auto retro-window-dark p-8 text-center space-y-6 border border-zinc-800">
-          <RetroRobotIcon size={48} className="mx-auto" />
-          <div className="space-y-2">
-            <h3 className="font-mono text-base font-bold uppercase">NO DATASET LOADED FOR TRAINING</h3>
-            <p className="font-mono text-xs text-zinc-400">
-              Please mount a dataset into workspace memory before configuring machine learning pipelines.
+      <div className="min-h-screen bg-[#09090B] text-zinc-100 p-8">
+        <div className="max-w-xl mx-auto rounded-2xl border border-zinc-800 bg-[#101014] p-10 text-center space-y-5">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto">
+            <Cpu className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-base font-bold text-white">No Dataset Loaded for Training</h3>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+              Mount a dataset into workspace memory via the Dataset Explorer before configuring training pipelines.
             </p>
           </div>
-          <Link href="/explorer" className="btn-retro btn-retro-blue text-xs py-2 px-4">
-            GO TO DATASET EXPLORER ↗
+          <Link
+            href="/explorer"
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-all"
+          >
+            <span>Open Dataset Explorer</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
@@ -222,190 +226,183 @@ export default function StudioPage() {
   const currentModels = problemType === "classification" ? CLASSIFICATION_MODELS : REGRESSION_MODELS;
 
   return (
-    <div className="min-h-screen bg-[#0C0C0E] text-white p-4 sm:p-6 lg:p-8 bg-retro-grid selection:bg-[#1864FF] selection:text-white">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Workstation Title Header */}
-        <div className="retro-window-dark p-4 border border-zinc-800">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-[#FBBF24] font-mono text-xs font-bold uppercase tracking-wider">
-                <span className="w-2 h-2 bg-[#FBBF24] inline-block" />
-                <span>MODULE_04 // MULTI-MODEL COMPILER & BACKGROUND WORKER</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-mono font-bold tracking-tight text-white uppercase">
-                MACHINE LEARNING STUDIO
-              </h1>
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2 text-xs font-mono text-blue-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span>Parallel Multi-Model Training Console</span>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleStartTraining}
-                disabled={isTraining}
-                className="btn-retro btn-retro-blue text-xs flex items-center gap-2 py-2 px-4 shadow-[3px_3px_0px_0px_#002B99]"
-              >
-                {isTraining ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
-                <span>{isTraining ? "COMPILING PIPELINES..." : "EXECUTE TRAINING RUN"}</span>
-              </button>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              ML Training Studio
+            </h1>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 font-mono text-xs text-zinc-400">
-            <div>
-              SUGGESTED PROBLEM TYPE: <span className="text-[#1864FF] font-bold uppercase">{candidates.suggested_task}</span>
-            </div>
-            <div>
-              TOTAL ELIGIBLE COLUMNS: {candidates.columns.length}
-            </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleStartTraining}
+              disabled={isTraining}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md shadow-blue-600/30 flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-75"
+            >
+              {isTraining ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
+              <span>{isTraining ? "Training Pipelines..." : "Start Training Run"}</span>
+            </button>
           </div>
         </div>
 
-        {/* Notifications / Errors */}
+        {/* Notifications */}
         {error && (
-          <div className="p-3 bg-red-950/80 border border-red-500 text-red-200 font-mono text-xs flex items-center gap-2">
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-xs flex items-center space-x-2.5 animate-in fade-in">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>ERROR: {error}</span>
+            <span>{error}</span>
           </div>
         )}
 
-        {/* Real-time Training Progress Console (Mainframe Style) */}
+        {/* Real-time Training Progress Console */}
         {isTraining && jobStatus && (
-          <div className="retro-window-light border border-black p-4 space-y-3 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-            <div className="flex items-center justify-between pb-2 border-b border-black font-mono text-xs font-bold uppercase text-black">
-              <div className="flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-[#1864FF]" />
-                <span>TRAINING_WORKER_THREAD: ACTIVE (JOB ID: {jobId?.slice(0, 8)})</span>
+          <div className="rounded-2xl border border-blue-500/30 bg-[#101014] p-5 space-y-3.5 shadow-xl shadow-blue-950/20">
+            <div className="flex items-center justify-between text-xs font-mono font-medium">
+              <div className="flex items-center space-x-2 text-white">
+                <Terminal className="w-4 h-4 text-blue-400" />
+                <span>Background Worker Active (Job {jobId?.slice(0, 8)})</span>
               </div>
-              <span className="text-[#1864FF]">
-                {Math.round((jobStatus.progress || 0) * 100)}% COMPLETE
+              <span className="text-blue-400 font-bold">
+                {Math.round((jobStatus.progress || 0) * 100)}% Complete
               </span>
             </div>
 
-            {/* ASCII Progress Bar */}
-            <div className="space-y-1">
-              <div className="flex justify-between font-mono text-[11px] text-zinc-600 font-bold">
-                <span>{jobStatus.current_model || "INITIALIZING PREPROCESSING"}</span>
-                <span>STEP {jobStatus.completed_models?.length || 0} / {jobStatus.total_models || selectedModels.length}</span>
+            {/* Modern Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-mono text-zinc-400">
+                <span>{jobStatus.current_model || "Fitting models on training split..."}</span>
+                <span>
+                  {jobStatus.completed_models?.length || 0} / {jobStatus.total_models || selectedModels.length} models
+                </span>
               </div>
-              <div className="w-full bg-zinc-300 h-3 border border-black overflow-hidden">
+              <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
                 <div
-                  className="bg-[#1864FF] h-full transition-all duration-300"
+                  className="bg-blue-500 h-full rounded-full transition-all duration-300"
                   style={{ width: `${Math.round((jobStatus.progress || 0) * 100)}%` }}
                 />
               </div>
             </div>
 
-            {/* Console Log Stream */}
-            <div className="p-3 bg-black text-[#9AE6B4] font-mono text-[11px] space-y-0.5 border border-black max-h-36 overflow-y-auto">
-              <div>&gt; [PIPELINE] Data split executed: {(1 - testSize) * 100}% train, {testSize * 100}% test</div>
-              <div>&gt; [PREPROCESSING] Scaler configured: {scalerType.toUpperCase()}</div>
+            {/* Live Console Stream */}
+            <div className="p-3.5 rounded-xl bg-zinc-950 text-xs font-mono text-zinc-300 space-y-1 max-h-32 overflow-y-auto">
+              <div className="text-emerald-400">
+                &gt; [Split] Zero data leakage verified: {(1 - testSize) * 100}% train, {testSize * 100}% test
+              </div>
+              <div className="text-blue-400">
+                &gt; [Preprocessor] Fitted {scalerType.toUpperCase()} scaler strictly on X_train
+              </div>
               {jobStatus.completed_models?.map((m: string) => (
-                <div key={m} className="text-white">
-                  &gt; [TRAINED] Algorithm `{m}` fitted and scored successfully.
+                <div key={m} className="text-zinc-300">
+                  &gt; [Fitted] Algorithm `{m}` evaluated successfully.
                 </div>
               ))}
               {jobStatus.current_model && (
-                <div className="text-[#FBBF24] animate-pulse">
-                  &gt; [TRAINING] Fitting `{jobStatus.current_model}` with hyperparameter validation...
+                <div className="text-amber-400 animate-pulse">
+                  &gt; [Running] Training `{jobStatus.current_model}` with hyperparameter validation...
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* 2-Column Studio Workbench */}
+        {/* 2-Column Workbench */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Task & Target Selection */}
           <div className="space-y-6 lg:col-span-1">
-            {/* 1. Problem Type Selector */}
-            <div className="retro-window-dark p-4 border border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold text-white uppercase">
-                <span>01. PROBLEM FORMULATION</span>
-                <span className="w-2 h-2 bg-[#1864FF] inline-block" />
+            {/* 1. Problem Formulation */}
+            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-xs font-semibold text-zinc-200">
+                <span>1. Problem Formulation</span>
+                <span className="text-[10px] font-mono text-blue-400 uppercase">
+                  Suggested: {candidates.suggested_task}
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => handleTaskChange("classification")}
-                  className={`p-3 font-mono text-xs font-bold uppercase tracking-wider border text-center transition-all ${
+                  className={`p-3 rounded-xl text-xs font-semibold text-center transition-all ${
                     problemType === "classification"
-                      ? "bg-[#1864FF] text-white border-white shadow-[2px_2px_0px_0px_#FFF]"
-                      : "bg-zinc-900 text-zinc-400 border-zinc-700 hover:text-white"
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 border border-blue-500"
+                      : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
                   }`}
                 >
-                  CLASSIFICATION
+                  Classification
                 </button>
                 <button
                   type="button"
                   onClick={() => handleTaskChange("regression")}
-                  className={`p-3 font-mono text-xs font-bold uppercase tracking-wider border text-center transition-all ${
+                  className={`p-3 rounded-xl text-xs font-semibold text-center transition-all ${
                     problemType === "regression"
-                      ? "bg-[#1864FF] text-white border-white shadow-[2px_2px_0px_0px_#FFF]"
-                      : "bg-zinc-900 text-zinc-400 border-zinc-700 hover:text-white"
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 border border-blue-500"
+                      : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
                   }`}
                 >
-                  REGRESSION
+                  Regression
                 </button>
               </div>
             </div>
 
-            {/* 2. Target Column Picker */}
-            <div className="retro-window-dark p-4 border border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold text-white uppercase">
-                <span>02. TARGET VARIABLE (Y)</span>
-                <span className="w-2 h-2 bg-[#9AE6B4] inline-block" />
+            {/* 2. Target Variable Selection */}
+            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-xs font-semibold text-zinc-200">
+                <span>2. Target Variable (y)</span>
+                <span className="text-[10px] font-mono text-emerald-400">Auto-Detected</span>
               </div>
 
-              <div className="space-y-2">
-                <select
-                  value={targetCol}
-                  onChange={(e) => {
-                    const newTarget = e.target.value;
-                    setTargetCol(newTarget);
-                    setFeatureCols((prev) => prev.filter((c) => c !== newTarget));
-                  }}
-                  className="w-full bg-zinc-900 border border-zinc-700 p-2.5 font-mono text-xs text-white uppercase focus:outline-none focus:border-[#1864FF]"
-                >
-                  {candidates[problemType].map((col) => (
+              <select
+                value={targetCol}
+                onChange={(e) => {
+                  const newTarget = e.target.value;
+                  setTargetCol(newTarget);
+                  setFeatureCols((prev) => prev.filter((c) => c !== newTarget));
+                }}
+                className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                {candidates[problemType].map((col) => (
+                  <option key={col} value={col}>
+                    {col} (Candidate Target)
+                  </option>
+                ))}
+                {candidates.columns
+                  .filter((c) => !candidates[problemType].includes(c))
+                  .map((col) => (
                     <option key={col} value={col}>
-                      {col} (AUTO-DETECTED CANDIDATE)
+                      {col}
                     </option>
                   ))}
-                  {candidates.columns
-                    .filter((c) => !candidates[problemType].includes(c))
-                    .map((col) => (
-                      <option key={col} value={col}>
-                        {col}
-                      </option>
-                    ))}
-                </select>
+              </select>
 
-                <div className="p-2 bg-zinc-950 border border-zinc-800 font-mono text-[10px] text-zinc-400">
-                  Target candidate selected based on cardinality and entropy analysis.
-                </div>
-              </div>
+              <p className="text-[11px] text-zinc-500 leading-relaxed font-mono">
+                Suggested target candidate selected based on cardinality and entropy analysis.
+              </p>
             </div>
 
             {/* 3. Preprocessing Config */}
-            <div className="retro-window-dark p-4 border border-zinc-800 space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold text-white uppercase">
-                <span>03. PREPROCESSING PIPELINE</span>
-                <span className="w-2 h-2 bg-[#FBBF24] inline-block" />
+            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-4">
+              <div className="pb-3 border-b border-zinc-800 text-xs font-semibold text-zinc-200">
+                <span>3. Preprocessing &amp; Split</span>
               </div>
 
-              {/* Scaler Options */}
-              <div className="space-y-1.5">
-                <label className="font-mono text-xs text-zinc-400 uppercase">NUMERIC SCALER</label>
-                <div className="grid grid-cols-3 gap-1.5 font-mono text-[11px]">
+              <div className="space-y-2">
+                <label className="text-xs text-zinc-400">Numeric Scaler</label>
+                <div className="grid grid-cols-3 gap-1.5 text-xs">
                   {(["standard", "robust", "minmax"] as const).map((s) => (
                     <button
                       key={s}
                       type="button"
                       onClick={() => setScalerType(s)}
-                      className={`p-2 border uppercase font-bold text-center ${
+                      className={`p-2 rounded-lg capitalize font-medium text-center transition-all ${
                         scalerType === s
-                          ? "bg-[#1864FF] text-white border-white"
-                          : "bg-zinc-900 text-zinc-400 border-zinc-700 hover:text-white"
+                          ? "bg-blue-600 text-white font-semibold shadow-sm"
+                          : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
                       }`}
                     >
                       {s}
@@ -414,12 +411,11 @@ export default function StudioPage() {
                 </div>
               </div>
 
-              {/* Train / Test Split Slider */}
-              <div className="space-y-1.5 pt-2">
-                <div className="flex justify-between font-mono text-xs text-zinc-400 uppercase">
-                  <span>TEST RATIO</span>
-                  <span className="text-[#1864FF] font-bold">
-                    {Math.round(testSize * 100)}% TEST ({(1 - testSize) * 100}% TRAIN)
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-between text-xs text-zinc-400">
+                  <span>Test Split Ratio</span>
+                  <span className="text-blue-400 font-mono font-medium">
+                    {Math.round(testSize * 100)}% test / {(1 - testSize) * 100}% train
                   </span>
                 </div>
                 <input
@@ -429,7 +425,7 @@ export default function StudioPage() {
                   step="0.05"
                   value={testSize}
                   onChange={(e) => setTestSize(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-zinc-800 appearance-none cursor-pointer accent-[#1864FF]"
+                  className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-blue-500"
                 />
               </div>
             </div>
@@ -437,33 +433,33 @@ export default function StudioPage() {
 
           {/* Right Column: Features & Model Selection */}
           <div className="space-y-6 lg:col-span-2">
-            {/* Features Matrix Checklist */}
-            <div className="retro-window-dark p-4 border border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-                <div className="font-mono text-xs font-bold text-white uppercase flex items-center gap-2">
-                  <span>04. INPUT FEATURES MATRIX (X)</span>
-                  <span className="text-[#1864FF]">
-                    [{featureCols.length} OF {candidates.columns.length - 1} SELECTED]
+            {/* Features Selection */}
+            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+                <div className="text-xs font-semibold text-zinc-200 flex items-center space-x-2">
+                  <span>4. Input Features Matrix (X)</span>
+                  <span className="text-blue-400 font-mono text-[11px]">
+                    ({featureCols.length} of {candidates.columns.length - 1} selected)
                   </span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex space-x-3 text-xs">
                   <button
                     onClick={handleSelectAllFeatures}
-                    className="text-[10px] font-mono font-bold text-[#1864FF] hover:underline uppercase"
+                    className="text-blue-400 hover:text-blue-300 font-medium"
                   >
-                    SELECT ALL
+                    Select All
                   </button>
-                  <span className="text-zinc-600">|</span>
+                  <span className="text-zinc-600">•</span>
                   <button
                     onClick={handleClearFeatures}
-                    className="text-[10px] font-mono font-bold text-zinc-400 hover:underline uppercase"
+                    className="text-zinc-400 hover:text-white font-medium"
                   >
-                    DESELECT
+                    Clear
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1 max-h-56 overflow-y-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-56 overflow-y-auto pt-1">
                 {candidates.columns
                   .filter((col) => col !== targetCol)
                   .map((col) => {
@@ -473,26 +469,30 @@ export default function StudioPage() {
                         key={col}
                         type="button"
                         onClick={() => toggleFeature(col)}
-                        className={`retro-pill justify-between text-left text-[11px] truncate ${
-                          isSelected ? "active" : ""
+                        className={`px-3 py-2 rounded-xl text-xs font-medium transition-all text-left truncate flex items-center justify-between ${
+                          isSelected
+                            ? "bg-blue-600/15 text-blue-400 border border-blue-500/30 font-semibold"
+                            : "bg-zinc-900/60 text-zinc-400 hover:text-white border border-zinc-800"
                         }`}
                       >
                         <span className="truncate">{col}</span>
-                        {isSelected ? <X className="w-3 h-3 ml-1 shrink-0" /> : null}
+                        {isSelected ? <Check className="w-3.5 h-3.5 shrink-0 ml-1" /> : null}
                       </button>
                     );
                   })}
               </div>
             </div>
 
-            {/* Model Selection Matrix */}
-            <div className="retro-window-dark p-4 border border-zinc-800 space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold text-white uppercase">
-                <div className="flex items-center gap-2">
-                  <span>05. MODEL ARCHITECTURES TO COMPILE</span>
-                  <span className="text-[#9AE6B4]">[{selectedModels.length} SELECTED]</span>
+            {/* Model Architecture Checkboxes */}
+            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+                <div className="text-xs font-semibold text-zinc-200 flex items-center space-x-2">
+                  <span>5. Model Architectures to Train</span>
+                  <span className="text-emerald-400 font-mono text-[11px]">
+                    ({selectedModels.length} selected)
+                  </span>
                 </div>
-                <span className="text-zinc-500 text-[10px]">PARALLEL FITTING</span>
+                <span className="text-xs text-zinc-500 font-mono">Parallel Execution</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -502,38 +502,38 @@ export default function StudioPage() {
                     <div
                       key={m.id}
                       onClick={() => toggleModel(m.id)}
-                      className={`p-3 border cursor-pointer select-none transition-colors flex items-center justify-between ${
+                      className={`p-3.5 rounded-xl border cursor-pointer select-none transition-all flex items-start space-x-3 ${
                         isChecked
-                          ? "bg-zinc-900 border-[#1864FF]"
-                          : "bg-zinc-950 border-zinc-800 hover:border-zinc-700"
+                          ? "bg-blue-950/15 border-blue-500/40 ring-1 ring-blue-500/20"
+                          : "bg-zinc-900/40 border-zinc-800 hover:border-zinc-700"
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className={`w-4 h-4 border border-black flex items-center justify-center ${
-                            isChecked ? "bg-[#1864FF] text-white" : "bg-zinc-800"
-                          }`}
-                        >
-                          {isChecked && <Check className="w-3 h-3" />}
-                        </div>
-                        <span className="font-mono text-xs font-bold text-white">{m.name}</span>
+                      <div
+                        className={`w-4 h-4 rounded mt-0.5 border flex items-center justify-center transition-colors shrink-0 ${
+                          isChecked ? "bg-blue-600 border-blue-500 text-white" : "border-zinc-700 bg-zinc-800"
+                        }`}
+                      >
+                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="font-semibold text-xs text-white">{m.name}</div>
+                        <p className="text-[11px] text-zinc-400 leading-relaxed">{m.desc}</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Action Button at bottom */}
               <div className="pt-4 border-t border-zinc-800 flex justify-end">
                 <button
                   type="button"
                   onClick={handleStartTraining}
                   disabled={isTraining}
-                  className="btn-retro btn-retro-blue text-xs py-3 px-6 shadow-[4px_4px_0px_0px_#002B99]"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md shadow-blue-600/30 flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-75"
                 >
                   {isTraining ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
-                  <span>DISPATCH TRAINING JOB TO FASTAPI WORKER</span>
-                  <ArrowRight className="w-4 h-4 ml-1" />
+                  <span>Dispatch Parallel Training Job</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -541,7 +541,7 @@ export default function StudioPage() {
         </div>
       </div>
 
-      {/* Floating Retro Dock */}
+      {/* Floating Command Dock */}
       <RetroDock />
     </div>
   );

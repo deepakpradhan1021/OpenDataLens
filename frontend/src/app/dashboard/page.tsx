@@ -17,16 +17,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   Loader2,
+  Layers,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { EmptyState } from "@/components/empty-state";
 import { RetroDock } from "@/components/retro-dock";
-import {
-  RetroMonitorIcon,
-  RetroHeartDocIcon,
-  RetroRobotIcon,
-  RetroRocketIcon,
-} from "@/components/retro-icons";
 
 export default function DashboardPage() {
   const [activeDataset, setActiveDataset] = useState<any>(null);
@@ -56,308 +51,308 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0C0C0E] text-white p-4 sm:p-6 lg:p-8 bg-retro-grid selection:bg-[#1864FF] selection:text-white">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Workstation Title Header */}
-        <div className="retro-window-dark p-4 border border-zinc-800">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-[#1864FF] font-mono text-xs font-bold uppercase tracking-wider">
-                <span className="w-2 h-2 bg-[#1864FF] inline-block" />
-                <span>MODULE_01 // TELEMETRY & WORKSPACE CONTROLLER</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-mono font-bold tracking-tight text-white uppercase">
-                SYSTEM DASHBOARD
-              </h1>
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Top Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2 text-xs font-mono text-blue-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span>Telemetry Hub &amp; Active Session Overview</span>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href="/explorer"
-                className="btn-retro btn-retro-dark text-xs flex items-center gap-1.5"
-              >
-                <Database className="w-3.5 h-3.5" />
-                <span>SWITCH DATASET</span>
-              </Link>
-              <Link
-                href="/studio"
-                className="btn-retro btn-retro-blue text-xs flex items-center gap-1.5"
-              >
-                <Cpu className="w-3.5 h-3.5" />
-                <span>NEW TRAINING RUN</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Platform Dashboard
+            </h1>
           </div>
 
-          {/* Subheader Status */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 font-mono text-xs text-zinc-400">
-            <div className="flex items-center gap-3">
-              <span className="text-[#9AE6B4]">● ENGINE: READY</span>
-              <span>IN-MEMORY BUS: SYNCED</span>
-            </div>
-            <div>
-              {activeDataset ? (
-                <span className="text-[#1864FF] font-bold">
-                  ACTIVE_OBJECT: {activeDataset.metadata?.name || activeDataset.metadata?.id}
-                </span>
-              ) : (
-                <span className="text-amber-400 font-bold">[NO ACTIVE DATASET LOADED]</span>
-              )}
-            </div>
+          <div className="flex items-center space-x-3">
+            <Link
+              href="/explorer"
+              className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-semibold transition-all"
+            >
+              <Database className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Switch Dataset</span>
+            </Link>
+            <Link
+              href="/studio"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm shadow-blue-600/30 transition-all"
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span>New Training Run</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
 
         {loading ? (
-          <div className="retro-window-dark p-12 text-center font-mono text-xs text-zinc-400 flex items-center justify-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-[#1864FF]" />
-            <span>INTERROGATING FASTAPI ENGINE WORKSPACE...</span>
+          <div className="p-16 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 text-center text-xs font-mono text-zinc-400 flex items-center justify-center space-x-2">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+            <span>Querying active in-memory session...</span>
           </div>
         ) : !activeDataset ? (
-          /* Empty State styled as vintage computer prompt */
-          <div className="retro-window-dark p-12 text-center space-y-6 border border-zinc-800">
-            <div className="flex justify-center">
-              <RetroMonitorIcon size={64} />
+          /* Empty State */
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-12 text-center space-y-6 max-w-xl mx-auto shadow-xl">
+            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto">
+              <Database className="w-7 h-7" />
             </div>
             <div className="space-y-2">
-              <h3 className="font-mono text-lg font-bold text-white uppercase">
-                WORKSPACE MEMORY IS EMPTY
-              </h3>
-              <p className="font-mono text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
-                No dataset is currently mounted into session memory. Ingest a benchmark from the Curated Catalog, stream from Hugging Face Hub, or insert a local CSV file.
+              <h3 className="text-lg font-bold text-white">No Dataset Currently Mounted</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed max-w-sm mx-auto">
+                Mount a curated benchmark, search public Hugging Face repositories, or upload a local CSV to populate your workspace.
               </p>
             </div>
             <div className="pt-2">
               <Link
                 href="/explorer"
-                className="btn-retro btn-retro-blue text-xs py-3 px-6"
+                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/25 transition-all"
               >
-                <span>OPEN DATASET EXPLORER</span>
-                <ArrowRight className="w-4 h-4 ml-1" />
+                <span>Go to Dataset Explorer</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
-            {/* 4 Hardware Register KPI Cards */}
+          <div className="space-y-8">
+            {/* 4 Modern Metric Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Card 1 */}
-              <div className="retro-window-dark p-4 border border-zinc-800 flex flex-col justify-between space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase font-bold">
-                  <span>REG_01: ACTIVE_DATASET</span>
-                  <RetroMonitorIcon size={20} />
+              <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-medium">
+                  <span>Active Dataset</span>
+                  <Database className="w-4 h-4 text-blue-400" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold font-mono text-white truncate">
+                  <div className="text-xl font-bold text-white truncate">
                     {activeDataset.metadata.name}
                   </div>
-                  <div className="text-xs font-mono text-zinc-400 pt-0.5">
-                    SOURCE: {activeDataset.metadata.source?.toUpperCase() || "CURATED"}
+                  <div className="text-xs text-zinc-400 pt-0.5">
+                    Source: {activeDataset.metadata.source?.toUpperCase() || "CURATED"}
                   </div>
                 </div>
-                <div className="text-[10px] font-mono text-[#1864FF] font-bold">
-                  MEMORY: {activeDataset.memory_mb.toFixed(2)} MB
+                <div className="text-[11px] font-mono text-zinc-500">
+                  Memory: {activeDataset.memory_mb.toFixed(2)} MB
                 </div>
               </div>
 
               {/* Card 2 */}
-              <div className="retro-window-dark p-4 border border-zinc-800 flex flex-col justify-between space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase font-bold">
-                  <span>REG_02: MATRIX_DIMENSIONS</span>
-                  <Database className="w-4 h-4 text-zinc-400" />
+              <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-medium">
+                  <span>Matrix Dimensions</span>
+                  <Layers className="w-4 h-4 text-indigo-400" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold font-mono text-white">
+                  <div className="text-xl font-bold text-white">
                     {activeDataset.total_rows.toLocaleString()} × {activeDataset.total_cols}
                   </div>
-                  <div className="text-xs font-mono text-zinc-400 pt-0.5">
-                    {activeDataset.columns.filter((c: any) => c.dtype.includes("int") || c.dtype.includes("float")).length} NUMERIC,{" "}
-                    {activeDataset.columns.filter((c: any) => !c.dtype.includes("int") && !c.dtype.includes("float")).length} CATEGORICAL
+                  <div className="text-xs text-zinc-400 pt-0.5">
+                    {activeDataset.columns.filter((c: any) => c.dtype.includes("int") || c.dtype.includes("float")).length} numeric,{" "}
+                    {activeDataset.columns.filter((c: any) => !c.dtype.includes("int") && !c.dtype.includes("float")).length} categorical
                   </div>
                 </div>
-                <div className="text-[10px] font-mono text-[#9AE6B4] font-bold">
-                  SPLIT READY: 80 / 20
+                <div className="text-[11px] font-mono text-emerald-400">
+                  Ready for 80/20 train split
                 </div>
               </div>
 
               {/* Card 3 */}
-              <div className="retro-window-dark p-4 border border-zinc-800 flex flex-col justify-between space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase font-bold">
-                  <span>REG_03: QUALITY_INDEX</span>
-                  <ShieldCheck className="w-4 h-4 text-[#9AE6B4]" />
+              <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-medium">
+                  <span>Completeness Health</span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold font-mono text-[#9AE6B4]">
-                    {quality ? `${quality.overview.completeness_score.toFixed(1)}%` : "PENDING"}
+                  <div className="text-xl font-bold text-emerald-400">
+                    {quality ? `${quality.overview.completeness_score.toFixed(1)}%` : "Pending"}
                   </div>
-                  <div className="text-xs font-mono text-zinc-400 pt-0.5">
-                    {quality ? `${quality.overview.duplicate_rows} DUPLICATES DETECTED` : "AWAITING AUDIT"}
+                  <div className="text-xs text-zinc-400 pt-0.5">
+                    {quality ? `${quality.overview.duplicate_rows} duplicate rows` : "Awaiting audit"}
                   </div>
                 </div>
                 <Link
                   href="/quality"
-                  className="text-[10px] font-mono text-[#1864FF] hover:underline font-bold"
+                  className="text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center space-x-1"
                 >
-                  VIEW QUALITY BREAKDOWN →
+                  <span>View Quality Audit</span>
+                  <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
 
               {/* Card 4 */}
-              <div className="retro-window-dark p-4 border border-zinc-800 flex flex-col justify-between space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase font-bold">
-                  <span>REG_04: BENCHMARK_STATUS</span>
-                  <Cpu className="w-4 h-4 text-[#FBBF24]" />
+              <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-medium">
+                  <span>Evaluated Models</span>
+                  <Cpu className="w-4 h-4 text-violet-400" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold font-mono text-white">
-                    {comparison?.champion ? comparison.champion.name : "0 MODELS"}
+                  <div className="text-xl font-bold text-white truncate">
+                    {comparison?.champion ? comparison.champion.name : "0 Models"}
                   </div>
-                  <div className="text-xs font-mono text-zinc-400 pt-0.5">
+                  <div className="text-xs text-zinc-400 pt-0.5">
                     {comparison?.champion
-                      ? `SCORE: ${(comparison.champion.score * 100).toFixed(1)}%`
-                      : "READY TO TRAIN"}
+                      ? `Score: ${(comparison.champion.score * 100).toFixed(1)}%`
+                      : "Ready to train"}
                   </div>
                 </div>
                 <Link
                   href="/studio"
-                  className="text-[10px] font-mono text-[#1864FF] hover:underline font-bold"
+                  className="text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center space-x-1"
                 >
-                  OPEN ML STUDIO →
+                  <span>Open ML Studio</span>
+                  <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
             </div>
 
             {/* Champion Model Banner if exists */}
             {comparison?.champion && (
-              <div className="retro-window-light border border-black p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#1864FF] text-white flex items-center justify-center font-bold text-sm border border-black shadow-[2px_2px_0px_0px_#000]">
+              <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-900/20 via-indigo-900/20 to-zinc-900/40 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-blue-950/40">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-blue-600/40">
                     ★
                   </div>
-                  <div>
-                    <div className="font-mono text-xs font-bold text-black uppercase">
-                      CHAMPION MODEL BENCHMARK: {comparison.champion.name}
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                      Champion Model Architecture
                     </div>
-                    <div className="text-xs text-zinc-600 font-mono">
-                      PRIMARY METRIC: {comparison.champion.metric} ={" "}
-                      <span className="font-bold text-[#1864FF]">
+                    <div className="text-lg font-bold text-white">
+                      {comparison.champion.name}
+                    </div>
+                    <div className="text-xs text-zinc-400 font-mono">
+                      Metric: {comparison.champion.metric} ={" "}
+                      <span className="font-bold text-emerald-400">
                         {(comparison.champion.score * 100).toFixed(2)}%
                       </span>{" "}
-                      ACROSS {comparison.scoreboard?.length || 0} TRAINED ARCHITECTURES
+                      across {comparison.scoreboard?.length || 0} trained algorithms
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex items-center space-x-2">
                   <Link
                     href="/comparison"
-                    className="btn-retro btn-retro-blue text-xs py-1.5 px-3"
+                    className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold border border-zinc-700 transition-colors"
                   >
-                    <span>LEADERBOARD</span>
-                    <span>↗</span>
+                    Leaderboard
                   </Link>
                   <Link
                     href="/reports"
-                    className="btn-retro text-xs py-1.5 px-3"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors"
                   >
-                    <span>EXPORT AUDIT</span>
-                    <span>↗</span>
+                    Export Artifacts
                   </Link>
                 </div>
               </div>
             )}
 
-            {/* Workstation Quick Action Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Quick Action Station */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Module 1 */}
-              <div className="retro-window-dark p-5 border border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-                  <span className="font-mono text-xs font-bold text-white">01. QUALITY PROFILER</span>
-                  <RetroHeartDocIcon size={24} />
+              <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-semibold text-zinc-400 uppercase">
+                    Module 01
+                  </span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 </div>
-                <p className="text-zinc-400 text-xs font-mono leading-relaxed">
-                  Inspect missing values matrix, correlation heatmaps, feature distributions, and automated cleaning recommendations.
-                </p>
-                <div className="pt-2">
-                  <Link
-                    href="/quality"
-                    className="btn-retro btn-retro-dark text-xs w-full py-2 flex items-center justify-center gap-2"
-                  >
-                    <span>LAUNCH QUALITY AUDIT</span>
-                    <span>↗</span>
-                  </Link>
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-base text-white">Data Quality Profiler</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Audit null percentages, duplicate records, distribution skewness, and high correlation matrices.
+                  </p>
                 </div>
+                <Link
+                  href="/quality"
+                  className="w-full inline-flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-800 text-xs font-semibold transition-colors"
+                >
+                  <span>Launch Quality Audit</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
 
               {/* Module 2 */}
-              <div className="retro-window-dark p-5 border border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-                  <span className="font-mono text-xs font-bold text-white">02. ML TRAINING STUDIO</span>
-                  <RetroRobotIcon size={24} />
+              <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-semibold text-zinc-400 uppercase">
+                    Module 02
+                  </span>
+                  <Cpu className="w-4 h-4 text-blue-400" />
                 </div>
-                <p className="text-zinc-400 text-xs font-mono leading-relaxed">
-                  Automatically identify target columns, select preprocessing pipelines, and train baseline Scikit-learn algorithms.
-                </p>
-                <div className="pt-2">
-                  <Link
-                    href="/studio"
-                    className="btn-retro btn-retro-blue text-xs w-full py-2 flex items-center justify-center gap-2"
-                  >
-                    <span>TRAIN MODELS NOW</span>
-                    <span>↗</span>
-                  </Link>
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-base text-white">ML Training Studio</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Auto-detect target columns, select input features, configure preprocessing, and run parallel training.
+                  </p>
                 </div>
+                <Link
+                  href="/studio"
+                  className="w-full inline-flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors"
+                >
+                  <span>Train Models Now</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
 
               {/* Module 3 */}
-              <div className="retro-window-dark p-5 border border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-                  <span className="font-mono text-xs font-bold text-white">03. REPORT DISPATCH</span>
-                  <RetroRocketIcon size={24} />
+              <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-semibold text-zinc-400 uppercase">
+                    Module 03
+                  </span>
+                  <FileText className="w-4 h-4 text-violet-400" />
                 </div>
-                <p className="text-zinc-400 text-xs font-mono leading-relaxed">
-                  Generate downloadable research reports in HTML, JSON, and Markdown format, or export trained model `.joblib` binaries.
-                </p>
-                <div className="pt-2">
-                  <Link
-                    href="/reports"
-                    className="btn-retro btn-retro-dark text-xs w-full py-2 flex items-center justify-center gap-2"
-                  >
-                    <span>DOWNLOAD REPORTS</span>
-                    <span>↗</span>
-                  </Link>
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-base text-white">Evaluation Reports</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Download standalone HTML dossiers, JSON telemetry audits, Markdown summaries, and `.joblib` model binaries.
+                  </p>
                 </div>
+                <Link
+                  href="/reports"
+                  className="w-full inline-flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-800 text-xs font-semibold transition-colors"
+                >
+                  <span>Download Reports</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             </div>
 
-            {/* ASCII Event Stream / Activity Log */}
-            <div className="retro-window-dark p-4 border border-zinc-800 space-y-2">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold text-zinc-400 uppercase">
-                <div className="flex items-center gap-2">
-                  <Terminal className="w-3.5 h-3.5 text-[#1864FF]" />
-                  <span>SYSTEM_ACTIVITY_STREAM.LOG</span>
+            {/* Live Event Stream Log */}
+            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-xs font-mono font-semibold text-zinc-400 uppercase">
+                <div className="flex items-center space-x-2">
+                  <Terminal className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Session Telemetry Log</span>
                 </div>
-                <span>STREAM: LIVE</span>
+                <span className="text-emerald-400 flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>Active In-Memory Bus</span>
+                </span>
               </div>
-              <div className="p-3 bg-zinc-950 font-mono text-[11px] text-zinc-400 space-y-1">
-                <div>[2026-11-10 17:55:01] FastAPIEngine mounted session &apos;default&apos; on thread 0x7fa2.</div>
-                <div>[2026-11-10 17:55:02] Dataset `{activeDataset.metadata.name}` validated with {activeDataset.total_rows} records.</div>
-                {quality && (
-                  <div>[2026-11-10 17:55:04] Quality audit completed: {quality.overview.completeness_score.toFixed(1)}% completeness score.</div>
-                )}
-                {comparison?.best_model && (
-                  <div className="text-[#9AE6B4]">
-                    [2026-11-10 17:55:08] Best model `{comparison.best_model.name}` achieved {(comparison.best_model.score * 100).toFixed(1)}% score.
+              <div className="p-3 rounded-xl bg-zinc-950 font-mono text-xs text-zinc-400 space-y-1">
+                <div>[SYSTEM] FastAPI Microservice initialized on port 8000.</div>
+                <div>[WORKSPACE] In-memory session store ready with thread-safe RLock.</div>
+                {activeDataset && (
+                  <div>
+                    [DATASET] `{activeDataset.metadata.name}` mounted with {activeDataset.total_rows.toLocaleString()} rows and {activeDataset.total_cols} columns.
                   </div>
                 )}
-                <div className="text-zinc-600">-- END OF CURRENT BUFFER --</div>
+                {quality && (
+                  <div className="text-emerald-400">
+                    [QUALITY] Completeness score: {quality.overview.completeness_score.toFixed(1)}% with {quality.overview.duplicate_rows} duplicates detected.
+                  </div>
+                )}
+                {comparison?.champion && (
+                  <div className="text-blue-400">
+                    [EVALUATION] Champion model: `{comparison.champion.name}` ({comparison.champion.metric} = {(comparison.champion.score * 100).toFixed(1)}%).
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Floating Retro Dock Toolbar */}
+      {/* Floating Command Dock */}
       <RetroDock />
     </div>
   );

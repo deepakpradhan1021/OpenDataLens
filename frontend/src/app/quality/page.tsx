@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Info,
 } from "lucide-react";
 import {
   BarChart,
@@ -30,7 +31,6 @@ import { api } from "@/lib/api";
 import { QualityAnalysisResponse } from "@/lib/types";
 import { EmptyState } from "@/components/empty-state";
 import { RetroDock } from "@/components/retro-dock";
-import { RetroHeartDocIcon } from "@/components/retro-icons";
 
 export default function QualityPage() {
   const [quality, setQuality] = useState<QualityAnalysisResponse | null>(null);
@@ -69,11 +69,11 @@ export default function QualityPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0C0C0E] text-white flex items-center justify-center p-8 bg-retro-grid">
-        <div className="retro-window-dark p-8 text-center space-y-3 border border-zinc-800">
-          <Loader2 className="w-6 h-6 animate-spin text-[#1864FF] mx-auto" />
-          <div className="font-mono text-xs uppercase tracking-wider text-zinc-300">
-            COMPUTING STATISTICAL MOMENTS & RUNNING QUALITY AUDIT...
+      <div className="min-h-screen bg-[#09090B] text-zinc-100 flex items-center justify-center p-8">
+        <div className="p-8 rounded-2xl border border-zinc-800 bg-[#101014] text-center space-y-3">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
+          <div className="text-xs font-mono text-zinc-400">
+            Computing statistical moments and evaluating data quality metrics...
           </div>
         </div>
       </div>
@@ -82,24 +82,29 @@ export default function QualityPage() {
 
   if (!quality) {
     return (
-      <div className="min-h-screen bg-[#0C0C0E] text-white p-8 bg-retro-grid">
-        <div className="max-w-xl mx-auto retro-window-dark p-8 text-center space-y-6 border border-zinc-800">
-          <RetroHeartDocIcon size={48} className="mx-auto" />
-          <div className="space-y-2">
-            <h3 className="font-mono text-base font-bold uppercase">NO ACTIVE DATASET LOADED</h3>
-            <p className="font-mono text-xs text-zinc-400">
-              Please mount a dataset into workspace memory before running statistical diagnostics.
+      <div className="min-h-screen bg-[#09090B] text-zinc-100 p-8">
+        <div className="max-w-xl mx-auto rounded-2xl border border-zinc-800 bg-[#101014] p-10 text-center space-y-5">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-base font-bold text-white">No Dataset Available to Audit</h3>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+              Mount a dataset into workspace memory via the Dataset Explorer before running statistical diagnostics.
             </p>
           </div>
-          <Link href="/explorer" className="btn-retro btn-retro-blue text-xs py-2 px-4">
-            GO TO DATASET EXPLORER ↗
+          <Link
+            href="/explorer"
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-all"
+          >
+            <span>Open Dataset Explorer</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
     );
   }
 
-  // Missing values data for Recharts
   const missingChartData = Object.entries(quality.missing_summary).map(
     ([col, stats]) => ({
       name: col,
@@ -109,131 +114,124 @@ export default function QualityPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0C0C0E] text-white p-4 sm:p-6 lg:p-8 bg-retro-grid selection:bg-[#1864FF] selection:text-white">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Workstation Title Header */}
-        <div className="retro-window-dark p-4 border border-zinc-800">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-[#9AE6B4] font-mono text-xs font-bold uppercase tracking-wider">
-                <span className="w-2 h-2 bg-[#9AE6B4] inline-block" />
-                <span>MODULE_03 // DATA DIAGNOSTICS & STATISTICAL PROFILER</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-mono font-bold tracking-tight text-white uppercase">
-                DATA QUALITY PROFILER
-              </h1>
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2 text-xs font-mono text-emerald-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>Diagnostic Quality Engine &amp; Health Checks</span>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href="/studio"
-                className="btn-retro btn-retro-blue text-xs flex items-center gap-1.5"
-              >
-                <Cpu className="w-3.5 h-3.5" />
-                <span>PROCEED TO ML STUDIO</span>
-                <span>↗</span>
-              </Link>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Data Quality Profiler
+            </h1>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 font-mono text-xs text-zinc-400">
-            <div>
-              TOTAL TESTED CELLS: {quality.overview.total_cells.toLocaleString()} ({quality.overview.total_rows} ROWS × {quality.overview.total_cols} COLS)
-            </div>
-            <div className="text-[#9AE6B4] font-bold">
-              COMPLETENESS SCORE: {quality.overview.completeness_score.toFixed(1)}%
-            </div>
+          <div className="flex items-center space-x-3">
+            <Link
+              href="/studio"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm shadow-blue-600/30 transition-all"
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span>Proceed to ML Studio</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
 
-        {/* 4 Diagnostic Registers */}
+        {/* 4 Health KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-1">
-            <div className="font-mono text-[10px] text-zinc-400 font-bold uppercase">
-              REG_A: COMPLETENESS_SCORE
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-2">
+            <div className="text-xs font-medium text-zinc-400 flex items-center justify-between">
+              <span>Completeness Score</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
-            <div className="text-2xl font-mono font-bold text-[#9AE6B4]">
+            <div className="text-2xl font-bold text-emerald-400">
               {quality.overview.completeness_score.toFixed(1)}%
             </div>
-            <div className="text-xs font-mono text-zinc-400">
-              {quality.overview.total_missing_cells} NULL CELLS
+            <div className="text-xs text-zinc-500 font-mono">
+              {quality.overview.total_missing_cells} null cells detected
             </div>
           </div>
 
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-1">
-            <div className="font-mono text-[10px] text-zinc-400 font-bold uppercase">
-              REG_B: DUPLICATE_RECORDS
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-2">
+            <div className="text-xs font-medium text-zinc-400 flex items-center justify-between">
+              <span>Duplicate Rows</span>
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
             </div>
-            <div className="text-2xl font-mono font-bold text-white">
+            <div className="text-2xl font-bold text-white">
               {quality.overview.duplicate_rows}
             </div>
-            <div className="text-xs font-mono text-zinc-400">
-              {quality.overview.duplicate_pct.toFixed(2)}% OF TOTAL ROWS
+            <div className="text-xs text-zinc-500 font-mono">
+              {quality.overview.duplicate_pct.toFixed(2)}% of total rows
             </div>
           </div>
 
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-1">
-            <div className="font-mono text-[10px] text-zinc-400 font-bold uppercase">
-              REG_C: COLUMN_TYPES
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-2">
+            <div className="text-xs font-medium text-zinc-400 flex items-center justify-between">
+              <span>Feature Types</span>
+              <Database className="w-4 h-4 text-blue-400" />
             </div>
-            <div className="text-2xl font-mono font-bold text-[#1864FF]">
-              {quality.column_types.numeric.length} NUM / {quality.column_types.categorical.length} CAT
+            <div className="text-2xl font-bold text-blue-400">
+              {quality.column_types.numeric.length} num / {quality.column_types.categorical.length} cat
             </div>
-            <div className="text-xs font-mono text-zinc-400">
-              {quality.column_types.id_candidate.length} ID CANDIDATES DETECTED
+            <div className="text-xs text-zinc-500 font-mono">
+              {quality.column_types.id_candidate.length} identifier candidates
             </div>
           </div>
 
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-1">
-            <div className="font-mono text-[10px] text-zinc-400 font-bold uppercase">
-              REG_D: MEMORY_FOOTPRINT
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-2">
+            <div className="text-xs font-medium text-zinc-400 flex items-center justify-between">
+              <span>Memory Footprint</span>
+              <Layers className="w-4 h-4 text-violet-400" />
             </div>
-            <div className="text-2xl font-mono font-bold text-white">
+            <div className="text-2xl font-bold text-white">
               {quality.overview.memory_mb.toFixed(2)} MB
             </div>
-            <div className="text-xs font-mono text-zinc-400">
-              OPTIMIZED IN-MEMORY PANDAS DF
+            <div className="text-xs text-zinc-500 font-mono">
+              Optimized Pandas DataFrame
             </div>
           </div>
         </div>
 
-        {/* Automated Quality Recommendations (Punchcard Style) */}
+        {/* Automated Recommendations */}
         {quality.recommendations.length > 0 && (
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold text-white uppercase">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-[#FBBF24] inline-block" />
-                <span>AUTOMATED DATA QUALITY RECOMMENDATIONS ({quality.recommendations.length})</span>
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center space-x-2">
+                <Info className="w-4 h-4 text-blue-400" />
+                <h3 className="font-semibold text-sm text-white">
+                  Automated Data Quality Recommendations ({quality.recommendations.length})
+                </h3>
               </div>
-              <span className="text-zinc-500 text-[10px]">PRE-FLIGHT ML CHECKS</span>
+              <span className="text-xs text-zinc-500 font-mono">Pre-flight ML validation</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {quality.recommendations.map((rec, idx) => (
                 <div
                   key={idx}
-                  className="p-3 bg-zinc-950 border border-zinc-800 space-y-1.5 font-mono text-xs"
+                  className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/30 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white uppercase">{rec.title}</span>
+                    <span className="font-semibold text-xs text-white">{rec.title}</span>
                     <span
-                      className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${
+                      className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
                         rec.type === "danger"
-                          ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                          ? "bg-red-500/10 text-red-400 border border-red-500/20"
                           : rec.type === "warning"
-                          ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                          : "bg-[#1864FF]/20 text-[#1864FF] border border-[#1864FF]/30"
+                          ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                          : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
                       }`}
                     >
                       {rec.type}
                     </span>
                   </div>
-                  <p className="text-zinc-400 text-[11px] leading-relaxed">
-                    {rec.description}
-                  </p>
+                  <p className="text-xs text-zinc-400 leading-relaxed">{rec.description}</p>
                   {rec.action && (
-                    <div className="text-[#9AE6B4] text-[10px] pt-1">
-                      RECOMMENDED ACTION: {rec.action}
+                    <div className="text-[11px] font-mono text-emerald-400 pt-1">
+                      Action: {rec.action}
                     </div>
                   )}
                 </div>
@@ -242,13 +240,13 @@ export default function QualityPage() {
           </div>
         )}
 
-        {/* Missing Values Diagnostic Chart & Column Breakdown */}
+        {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Missing Values Chart */}
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold uppercase">
-              <span>MISSING VALUES BY FEATURE (%)</span>
-              <span className="text-zinc-500 text-[10px]">THRESHOLD: 0% IDEAL</span>
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="font-semibold text-sm text-white">Missing Values Ratio by Feature (%)</h3>
+              <span className="text-xs font-mono text-zinc-500">Threshold: 0% Ideal</span>
             </div>
 
             <div className="h-64 w-full">
@@ -258,33 +256,26 @@ export default function QualityPage() {
                   <XAxis
                     dataKey="name"
                     stroke="#71717A"
-                    fontSize={10}
-                    fontFamily="monospace"
+                    fontSize={11}
                     interval={0}
                     angle={-20}
                     textAnchor="end"
                   />
-                  <YAxis
-                    stroke="#71717A"
-                    fontSize={10}
-                    fontFamily="monospace"
-                    domain={[0, 100]}
-                    unit="%"
-                  />
+                  <YAxis stroke="#71717A" fontSize={11} domain={[0, 100]} unit="%" />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#0C0C0E",
-                      border: "1px solid #000000",
-                      fontFamily: "monospace",
-                      fontSize: "11px",
+                      backgroundColor: "#101014",
+                      border: "1px solid #27272A",
+                      borderRadius: "8px",
+                      fontSize: "12px",
                       color: "#FFFFFF",
                     }}
                   />
-                  <Bar dataKey="missingPct" fill="#1864FF">
+                  <Bar dataKey="missingPct" fill="#3B82F6">
                     {missingChartData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.missingPct > 20 ? "#EF4444" : entry.missingPct > 0 ? "#F59E0B" : "#1864FF"}
+                        fill={entry.missingPct > 20 ? "#EF4444" : entry.missingPct > 0 ? "#F59E0B" : "#3B82F6"}
                       />
                     ))}
                   </Bar>
@@ -293,14 +284,14 @@ export default function QualityPage() {
             </div>
           </div>
 
-          {/* Interactive Feature Distribution Inspector */}
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold uppercase">
-              <span>FEATURE DISTRIBUTION INSPECTOR</span>
+          {/* Feature Distribution Inspector */}
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="font-semibold text-sm text-white">Feature Distribution Inspector</h3>
               <select
                 value={selectedCol}
                 onChange={(e) => setSelectedCol(e.target.value)}
-                className="bg-zinc-900 border border-zinc-700 font-mono text-[11px] text-white px-2 py-1 uppercase focus:outline-none focus:border-[#1864FF]"
+                className="bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white px-3 py-1.5 focus:outline-none focus:border-blue-500"
               >
                 {Object.keys(quality.missing_summary).map((col) => (
                   <option key={col} value={col}>
@@ -311,9 +302,9 @@ export default function QualityPage() {
             </div>
 
             {distLoading ? (
-              <div className="h-64 flex items-center justify-center font-mono text-xs text-zinc-500 gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-[#1864FF]" />
-                <span>CALCULATING HISTOGRAM BUCKETS...</span>
+              <div className="h-64 flex items-center justify-center text-xs font-mono text-zinc-500 space-x-2">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                <span>Computing distribution histograms...</span>
               </div>
             ) : distData ? (
               <div className="space-y-4">
@@ -321,75 +312,77 @@ export default function QualityPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={distData.bins}>
                       <CartesianGrid strokeDasharray="2 2" stroke="#27272A" vertical={false} />
-                      <XAxis dataKey="bin" stroke="#71717A" fontSize={9} fontFamily="monospace" />
-                      <YAxis stroke="#71717A" fontSize={10} fontFamily="monospace" />
+                      <XAxis dataKey="bin" stroke="#71717A" fontSize={10} />
+                      <YAxis stroke="#71717A" fontSize={11} />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: "#0C0C0E",
-                          border: "1px solid #000000",
-                          fontFamily: "monospace",
-                          fontSize: "11px",
+                          backgroundColor: "#101014",
+                          border: "1px solid #27272A",
+                          borderRadius: "8px",
+                          fontSize: "12px",
                           color: "#FFFFFF",
                         }}
                       />
-                      <Bar dataKey="count" fill="#9AE6B4" />
+                      <Bar dataKey="count" fill="#10B981" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
 
                 {distData.stats && (
-                  <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] p-2 bg-zinc-950 border border-zinc-800">
+                  <div className="grid grid-cols-4 gap-2 text-center p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/80 text-xs">
                     <div>
-                      <div className="text-zinc-500">MEAN</div>
+                      <div className="text-zinc-500 text-[10px] uppercase font-mono">Mean</div>
                       <div className="font-bold text-white">{distData.stats.mean?.toFixed(2) ?? "N/A"}</div>
                     </div>
                     <div>
-                      <div className="text-zinc-500">STD DEV</div>
+                      <div className="text-zinc-500 text-[10px] uppercase font-mono">Std Dev</div>
                       <div className="font-bold text-white">{distData.stats.std?.toFixed(2) ?? "N/A"}</div>
                     </div>
                     <div>
-                      <div className="text-zinc-500">MIN</div>
+                      <div className="text-zinc-500 text-[10px] uppercase font-mono">Min</div>
                       <div className="font-bold text-white">{distData.stats.min?.toFixed(2) ?? "N/A"}</div>
                     </div>
                     <div>
-                      <div className="text-zinc-500">MAX</div>
+                      <div className="text-zinc-500 text-[10px] uppercase font-mono">Max</div>
                       <div className="font-bold text-white">{distData.stats.max?.toFixed(2) ?? "N/A"}</div>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="h-64 flex items-center justify-center font-mono text-xs text-zinc-500">
-                SELECT A COLUMN ABOVE TO VIEW STATISTICAL DENSITY
+              <div className="h-64 flex items-center justify-center text-xs font-mono text-zinc-500">
+                Select a column above to view distribution
               </div>
             )}
           </div>
         </div>
 
-        {/* Correlation Matrix Heatmap (Vintage ASCII / Block Density) */}
+        {/* Correlation Matrix */}
         {quality.correlation_matrix && (
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold uppercase">
-              <span>PEARSON CORRELATION MATRIX (NUMERIC FEATURES)</span>
-              <span className="text-zinc-500 text-[10px]">RANGE: -1.00 TO +1.00</span>
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="font-semibold text-sm text-white">
+                Pearson Correlation Heatmap (Numeric Features)
+              </h3>
+              <span className="text-xs font-mono text-zinc-500">Range: -1.00 to +1.00</span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-center font-mono text-xs border-collapse">
+              <table className="w-full text-center text-xs font-mono border-collapse">
                 <thead>
                   <tr className="border-b border-zinc-800">
-                    <th className="p-2 text-left text-zinc-500 text-[10px] bg-zinc-950">FEATURES</th>
+                    <th className="p-2 text-left text-zinc-400 bg-zinc-900/60 rounded-tl-lg">Feature</th>
                     {quality.correlation_matrix.columns.map((col) => (
-                      <th key={col} className="p-2 text-[10px] text-zinc-300 uppercase truncate max-w-[100px]">
+                      <th key={col} className="p-2 text-zinc-300 truncate max-w-[110px]">
                         {col}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800">
+                <tbody className="divide-y divide-zinc-800/80">
                   {quality.correlation_matrix.columns.map((rowCol, rIdx) => (
                     <tr key={rowCol}>
-                      <td className="p-2 text-left font-bold text-white text-[10px] bg-zinc-950 truncate max-w-[120px]">
+                      <td className="p-2 text-left font-semibold text-white bg-zinc-900/40 truncate max-w-[120px]">
                         {rowCol}
                       </td>
                       {quality.correlation_matrix!.values[rIdx].map((val, cIdx) => {
@@ -398,9 +391,9 @@ export default function QualityPage() {
                         return (
                           <td
                             key={cIdx}
-                            className={`p-2 text-[10px] ${
+                            className={`p-2 transition-colors ${
                               isHigh
-                                ? "bg-[#1864FF]/30 text-[#93C5FD] font-bold"
+                                ? "bg-blue-600/30 text-blue-300 font-bold"
                                 : numVal > 0.3
                                 ? "text-zinc-200"
                                 : "text-zinc-500"
@@ -419,7 +412,7 @@ export default function QualityPage() {
         )}
       </div>
 
-      {/* Floating Retro Dock */}
+      {/* Floating Command Dock */}
       <RetroDock />
     </div>
   );

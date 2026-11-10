@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Filter, LayoutGrid, List, Check, X, ArrowUpRight } from "lucide-react";
+import { Filter, LayoutGrid, List, Check, X, Sparkles, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { FilterState, RetroFilterDrawer } from "./retro-filter-drawer";
 
@@ -29,7 +29,7 @@ export function RetroDock({
   activeCount = 0,
 }: RetroDockProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(true);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const totalActive =
     filters.task.length +
@@ -40,66 +40,50 @@ export function RetroDock({
 
   return (
     <>
-      <div className="fixed bottom-4 left-4 z-40 flex flex-col items-start select-none">
-        {/* Electric Blue Speech Bubble Tooltip (Matches Image 3) */}
-        {showTooltip && (
-          <div className="retro-tooltip-blue p-3 max-w-xs mb-3.5 animate-in slide-in-from-bottom-2 duration-200">
-            <div className="flex items-center justify-between gap-4 pb-1">
-              <span className="font-bold text-sm text-white tracking-tight">
-                Filter your search
-              </span>
-              <button
-                onClick={() => setShowTooltip(false)}
-                className="hover:opacity-75 text-white"
-                aria-label="Close tooltip"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <p className="font-mono text-[10px] uppercase tracking-wider text-blue-100 font-semibold leading-relaxed">
-              DIVE DEEPER INTO OUR DATASETS, PREPROCESSING PIPELINES & MODEL BENCHMARKS
-            </p>
-          </div>
-        )}
-
-        {/* Floating Dock Toolbar (Matches Image 2 & 3) */}
-        <div className="flex items-center bg-white text-black border border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-          {/* 1. Filter Results Button */}
+      <div className="fixed bottom-5 left-1/2 transform -translate-x-1/2 z-40 select-none">
+        {/* Floating Command Dock (Linear / Vercel Pill) */}
+        <div className="flex items-center p-1.5 rounded-full border border-zinc-700/60 bg-zinc-900/90 backdrop-blur-xl shadow-2xl shadow-black/80 space-x-1">
+          {/* 1. Filter Button */}
           <button
-            onClick={() => {
-              setIsDrawerOpen(true);
-              setShowTooltip(false);
-            }}
-            className={`flex items-center gap-1.5 px-3.5 py-2 font-mono text-xs font-bold uppercase tracking-wider border-r border-black transition-colors ${
+            onClick={() => setIsDrawerOpen(true)}
+            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
               isDrawerOpen || totalActive > 0
-                ? "bg-[#1864FF] text-white"
-                : "bg-white text-black hover:bg-zinc-100"
+                ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30 font-semibold"
+                : "text-zinc-300 hover:text-white hover:bg-zinc-800/80"
             }`}
           >
-            <Filter className="w-3.5 h-3.5" />
-            <span>FILTER RESULTS</span>
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filters</span>
             {totalActive > 0 && (
-              <span className="w-4 h-4 bg-white text-[#1864FF] text-[10px] font-black rounded-none flex items-center justify-center ml-0.5">
+              <span className="w-4 h-4 rounded-full bg-white text-blue-600 text-[10px] font-bold flex items-center justify-center">
                 {totalActive}
               </span>
             )}
-            <span className="text-[11px] font-mono">∧</span>
           </button>
 
-          {/* 2. Toggle View (Grid / List) */}
+          <div className="w-[1px] h-4 bg-zinc-700/60" />
+
+          {/* 2. View Mode Toggle */}
           <button
             onClick={onToggleView}
-            className="flex items-center gap-1.5 px-3 py-2 font-mono text-xs font-bold uppercase tracking-wider border-r border-black hover:bg-zinc-100 text-black transition-colors"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition-colors"
           >
             {viewMode === "grid" ? (
-              <LayoutGrid className="w-3.5 h-3.5" />
+              <>
+                <LayoutGrid className="w-3.5 h-3.5 text-blue-400" />
+                <span className="hidden sm:inline">Grid</span>
+              </>
             ) : (
-              <List className="w-3.5 h-3.5" />
+              <>
+                <List className="w-3.5 h-3.5 text-blue-400" />
+                <span className="hidden sm:inline">List</span>
+              </>
             )}
-            <span className="hidden sm:inline">TOGGLE VIEW</span>
           </button>
 
-          {/* 3. Fast Baselines / Switch */}
+          <div className="w-[1px] h-4 bg-zinc-700/60" />
+
+          {/* 3. Fast Baselines Only Toggle */}
           <button
             onClick={() =>
               onFilterChange({
@@ -107,35 +91,27 @@ export function RetroDock({
                 fastBaselinesOnly: !filters.fastBaselinesOnly,
               })
             }
-            className="flex items-center gap-1.5 px-3 py-2 font-mono text-xs font-bold uppercase tracking-wider hover:bg-zinc-100 text-black transition-colors"
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+              filters.fastBaselinesOnly
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                : "text-zinc-400 hover:text-white hover:bg-zinc-800/80"
+            }`}
           >
             <div
-              className={`w-3.5 h-3.5 border border-black flex items-center justify-center ${
-                filters.fastBaselinesOnly ? "bg-[#1864FF] text-white" : "bg-white"
+              className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center transition-colors ${
+                filters.fastBaselinesOnly
+                  ? "bg-emerald-500 border-emerald-400 text-black"
+                  : "border-zinc-600"
               }`}
             >
-              {filters.fastBaselinesOnly && <Check className="w-2.5 h-2.5" />}
+              {filters.fastBaselinesOnly && <Check className="w-2.5 h-2.5 stroke-[3]" />}
             </div>
-            <span>FAST ONLY</span>
+            <span className="hidden sm:inline">Fast Baselines</span>
           </button>
         </div>
       </div>
 
-      {/* Retro Mint Green Visit Resource Badge (Bottom Right, matching reference) */}
-      <div className="fixed bottom-4 right-4 z-30 hidden sm:flex items-center gap-1.5">
-        <div className="w-8 h-8 bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-xs flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-          W.
-        </div>
-        <Link
-          href="/studio"
-          className="flex items-center gap-1.5 px-3 py-2 bg-[#9AE6B4] text-[#064E3B] font-mono text-xs font-bold uppercase tracking-wider border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-[#86EFAC] transition-all"
-        >
-          <span>Launch Studio</span>
-          <ArrowUpRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
-
-      {/* Filter Modal / Drawer */}
+      {/* Filter Modal Drawer */}
       <RetroFilterDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}

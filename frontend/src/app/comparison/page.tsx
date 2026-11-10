@@ -15,6 +15,7 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Loader2,
+  Table as TableIcon,
 } from "lucide-react";
 import {
   BarChart,
@@ -32,7 +33,6 @@ import { api } from "@/lib/api";
 import { ModelComparisonResponse, ModelDiagnosticsResponse } from "@/lib/types";
 import { EmptyState } from "@/components/empty-state";
 import { RetroDock } from "@/components/retro-dock";
-import { RetroRocketIcon, RetroDisketteIcon } from "@/components/retro-icons";
 
 export default function ComparisonPage() {
   const [comparison, setComparison] = useState<ModelComparisonResponse | null>(null);
@@ -97,11 +97,11 @@ export default function ComparisonPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0C0C0E] text-white flex items-center justify-center p-8 bg-retro-grid">
-        <div className="retro-window-dark p-8 text-center space-y-3 border border-zinc-800">
-          <Loader2 className="w-6 h-6 animate-spin text-[#1864FF] mx-auto" />
-          <div className="font-mono text-xs uppercase tracking-wider text-zinc-300">
-            COMPUTING TOURNAMENT SCOREBOARD & CROSS-VALIDATION STATS...
+      <div className="min-h-screen bg-[#09090B] text-zinc-100 flex items-center justify-center p-8">
+        <div className="p-8 rounded-2xl border border-zinc-800 bg-[#101014] text-center space-y-3">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
+          <div className="text-xs font-mono text-zinc-400">
+            Synthesizing cross-validation metrics and leaderboard rankings...
           </div>
         </div>
       </div>
@@ -110,24 +110,29 @@ export default function ComparisonPage() {
 
   if (!comparison || comparison.scoreboard.length === 0) {
     return (
-      <div className="min-h-screen bg-[#0C0C0E] text-white p-8 bg-retro-grid">
-        <div className="max-w-xl mx-auto retro-window-dark p-8 text-center space-y-6 border border-zinc-800">
-          <RetroRocketIcon size={48} className="mx-auto" />
-          <div className="space-y-2">
-            <h3 className="font-mono text-base font-bold uppercase">NO MODELS EVALUATED YET</h3>
-            <p className="font-mono text-xs text-zinc-400">
-              Please train candidate models in the ML Studio before inspecting tournament benchmarks.
+      <div className="min-h-screen bg-[#09090B] text-zinc-100 p-8">
+        <div className="max-w-xl mx-auto rounded-2xl border border-zinc-800 bg-[#101014] p-10 text-center space-y-5">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto">
+            <BarChart3 className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-base font-bold text-white">No Models Evaluated Yet</h3>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+              Dispatch training jobs in the ML Studio to compare cross-validated models on your active dataset.
             </p>
           </div>
-          <Link href="/studio" className="btn-retro btn-retro-blue text-xs py-2 px-4">
-            GO TO ML STUDIO ↗
+          <Link
+            href="/studio"
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-all"
+          >
+            <span>Open ML Studio</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
     );
   }
 
-  // Bar chart data from scoreboard
   const chartData = comparison.scoreboard.map((row) => ({
     name: row["Model"],
     value: row[selectedMetric] || 0,
@@ -138,138 +143,129 @@ export default function ComparisonPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0C0C0E] text-white p-4 sm:p-6 lg:p-8 bg-retro-grid selection:bg-[#1864FF] selection:text-white">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Workstation Title Header */}
-        <div className="retro-window-dark p-4 border border-zinc-800">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-[#EF4444] font-mono text-xs font-bold uppercase tracking-wider">
-                <span className="w-2 h-2 bg-[#EF4444] inline-block" />
-                <span>MODULE_05 // TOURNAMENT BENCHMARKS & LEADERBOARD</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-mono font-bold tracking-tight text-white uppercase">
-                MODEL SHOWDOWN
-              </h1>
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2 text-xs font-mono text-blue-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span>Multi-Model Evaluation &amp; Benchmarks</span>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href="/reports"
-                className="btn-retro btn-retro-blue text-xs flex items-center gap-1.5"
-              >
-                <FileCode className="w-3.5 h-3.5" />
-                <span>EXPORT REPORT CENTER</span>
-                <span>↗</span>
-              </Link>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Model Comparison
+            </h1>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 font-mono text-xs text-zinc-400">
-            <div>
-              PROBLEM TYPE: <span className="text-white font-bold uppercase">{comparison.problem_type}</span>
-            </div>
-            <div>
-              TOTAL ARCHITECTURES BENCHMARKED: {comparison.scoreboard.length}
-            </div>
+          <div className="flex items-center space-x-3">
+            <Link
+              href="/reports"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm shadow-blue-600/30 transition-all"
+            >
+              <FileCode className="w-3.5 h-3.5" />
+              <span>Export Dossier</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
 
-        {/* Champion Model Banner (Retro Silver Window) */}
-        <div className="retro-window-light border border-black p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-[#1864FF] text-white flex items-center justify-center font-bold text-xl border border-black shadow-[2px_2px_0px_0px_#000]">
+        {/* Champion Model Banner */}
+        <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-900/20 via-indigo-900/20 to-zinc-900/40 p-6 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-lg shadow-blue-950/30">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-blue-600/40 shrink-0">
               ★
             </div>
-            <div className="space-y-0.5">
-              <div className="font-mono text-xs font-bold uppercase tracking-wider text-black">
-                CHAMPION ARCHITECTURE BENCHMARK
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                Champion Model Architecture
               </div>
-              <div className="text-xl font-bold font-mono text-black">
+              <div className="text-xl font-bold text-white">
                 {comparison.champion.name}
               </div>
-              <div className="font-mono text-xs text-zinc-600">
-                OPTIMIZED METRIC: {comparison.champion.metric} ={" "}
-                <span className="font-bold text-[#1864FF]">
+              <div className="text-xs text-zinc-400 font-mono">
+                Primary Metric: {comparison.champion.metric} ={" "}
+                <span className="font-bold text-emerald-400">
                   {(comparison.champion.score * 100).toFixed(2)}%
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => handleDownloadModel(comparison.champion.name)}
-              className="btn-retro btn-retro-blue text-xs py-2 px-4 flex items-center gap-2 shadow-[2px_2px_0px_0px_#002B99]"
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm flex items-center space-x-2 transition-all active:scale-95"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>DOWNLOAD .JOBLIB BINARY</span>
+              <span>Export .joblib Binary</span>
             </button>
           </div>
         </div>
 
         {/* Tournament Scoreboard Table */}
-        <div className="retro-window-dark border border-zinc-800 overflow-hidden space-y-0">
-          <div className="p-4 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
-            <span className="font-mono text-xs font-bold uppercase text-white">
-              TOURNAMENT SCOREBOARD LEADERBOARD
-            </span>
-            <span className="text-[10px] font-mono text-zinc-500">
-              SORTED BY PRIMARY EVALUATION CRITERION
+        <div className="rounded-2xl border border-zinc-800 bg-[#101014] overflow-hidden">
+          <div className="p-4 sm:p-5 bg-zinc-900/50 border-b border-zinc-800 flex items-center justify-between">
+            <h3 className="font-semibold text-sm text-white">
+              Model Performance Scoreboard ({comparison.scoreboard.length} Algorithms)
+            </h3>
+            <span className="text-xs font-mono text-zinc-500">
+              Ranked by {comparison.champion.metric}
             </span>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left font-mono text-xs">
-              <thead className="bg-[#121215] border-b border-zinc-800 text-zinc-400 uppercase text-[11px]">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-zinc-950 border-b border-zinc-800 text-zinc-400 uppercase text-[11px]">
                 <tr>
-                  <th className="p-3">RANK</th>
-                  <th className="p-3">MODEL ALGORITHM</th>
+                  <th className="p-3.5">Rank</th>
+                  <th className="p-3.5">Model Algorithm</th>
                   {metricOptions.map((m) => (
-                    <th key={m} className="p-3 text-right">
+                    <th key={m} className="p-3.5 text-right">
                       {m}
                     </th>
                   ))}
-                  <th className="p-3 text-right">TRAIN TIME (S)</th>
-                  <th className="p-3 text-center">ACTION</th>
+                  <th className="p-3.5 text-right">Train Time (s)</th>
+                  <th className="p-3.5 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800 bg-[#0C0C0E]">
+              <tbody className="divide-y divide-zinc-800/80 bg-[#0A0A0D]">
                 {comparison.scoreboard.map((row, idx) => {
                   const isChamp = row["Model"] === comparison.champion.name;
                   const isSelected = row["Model"] === selectedModel;
                   return (
                     <tr
                       key={row["Model"]}
-                      className={`hover:bg-zinc-900/60 transition-colors ${
-                        isSelected ? "bg-zinc-900/90" : ""
+                      className={`hover:bg-zinc-900/40 transition-colors ${
+                        isSelected ? "bg-zinc-900/60" : ""
                       }`}
                     >
-                      <td className="p-3 font-bold text-zinc-500">
-                        {isChamp ? <span className="text-amber-400 font-black">#1 ★</span> : `#${idx + 1}`}
+                      <td className="p-3.5 font-bold">
+                        {isChamp ? <span className="text-amber-400">#1 ★</span> : <span className="text-zinc-500">#{idx + 1}</span>}
                       </td>
-                      <td className="p-3 font-bold text-white flex items-center gap-2">
-                        <span className={`w-2 h-2 ${isChamp ? "bg-amber-400" : "bg-[#1864FF]"}`} />
-                        <span>{row["Model"]}</span>
+                      <td className="p-3.5 font-semibold text-white">
+                        <div className="flex items-center space-x-2">
+                          <span className={`w-2 h-2 rounded-full ${isChamp ? "bg-amber-400" : "bg-blue-500"}`} />
+                          <span>{row["Model"]}</span>
+                        </div>
                       </td>
                       {metricOptions.map((m) => (
-                        <td key={m} className="p-3 text-right text-zinc-300 font-bold">
+                        <td key={m} className="p-3.5 text-right text-zinc-300 font-medium">
                           {typeof row[m] === "number" ? row[m].toFixed(4) : row[m]}
                         </td>
                       ))}
-                      <td className="p-3 text-right text-zinc-400">
+                      <td className="p-3.5 text-right text-zinc-400">
                         {row["Training Time (s)"]?.toFixed(3) || "0.010"}s
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="p-3.5 text-center">
                         <button
                           onClick={() => setSelectedModel(row["Model"])}
-                          className={`px-2 py-1 font-mono text-[10px] font-bold uppercase border ${
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                             isSelected
-                              ? "bg-[#1864FF] text-white border-white"
-                              : "bg-zinc-900 text-zinc-400 border-zinc-700 hover:text-white"
+                              ? "bg-blue-600 text-white shadow-sm"
+                              : "bg-zinc-800 text-zinc-400 hover:text-white"
                           }`}
                         >
-                          INSPECT
+                          Inspect
                         </button>
                       </td>
                     </tr>
@@ -280,16 +276,16 @@ export default function ComparisonPage() {
           </div>
         </div>
 
-        {/* Visual Benchmark Chart & Deep Diagnostics */}
+        {/* Charts & Diagnostics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Metric Comparison Bar Chart */}
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold uppercase">
-              <span>METRIC SHOWDOWN CHART</span>
+          {/* Metric Comparison Chart */}
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="font-semibold text-sm text-white">Benchmark Comparison Chart</h3>
               <select
                 value={selectedMetric}
                 onChange={(e) => setSelectedMetric(e.target.value)}
-                className="bg-zinc-900 border border-zinc-700 font-mono text-[11px] text-white px-2 py-1 uppercase focus:outline-none focus:border-[#1864FF]"
+                className="bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white px-3 py-1.5 focus:outline-none focus:border-blue-500"
               >
                 {metricOptions.map((m) => (
                   <option key={m} value={m}>
@@ -306,27 +302,26 @@ export default function ComparisonPage() {
                   <XAxis
                     dataKey="name"
                     stroke="#71717A"
-                    fontSize={10}
-                    fontFamily="monospace"
+                    fontSize={11}
                     interval={0}
                     angle={-20}
                     textAnchor="end"
                   />
-                  <YAxis stroke="#71717A" fontSize={10} fontFamily="monospace" />
+                  <YAxis stroke="#71717A" fontSize={11} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#0C0C0E",
-                      border: "1px solid #000000",
-                      fontFamily: "monospace",
-                      fontSize: "11px",
+                      backgroundColor: "#101014",
+                      border: "1px solid #27272A",
+                      borderRadius: "8px",
+                      fontSize: "12px",
                       color: "#FFFFFF",
                     }}
                   />
-                  <Bar dataKey="value" fill="#1864FF">
+                  <Bar dataKey="value" fill="#3B82F6">
                     {chartData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.name === comparison.champion.name ? "#9AE6B4" : "#1864FF"}
+                        fill={entry.name === comparison.champion.name ? "#10B981" : "#3B82F6"}
                       />
                     ))}
                   </Bar>
@@ -336,55 +331,58 @@ export default function ComparisonPage() {
           </div>
 
           {/* Deep Inspection Panel */}
-          <div className="retro-window-dark p-4 border border-zinc-800 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800 font-mono text-xs font-bold uppercase">
-              <span>DEEP DIAGNOSTICS: {selectedModel}</span>
+          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="space-y-0.5">
+                <h3 className="font-semibold text-sm text-white">Inspection: {selectedModel}</h3>
+                <span className="text-[11px] font-mono text-zinc-500">Diagnostics &amp; Export</span>
+              </div>
               <button
                 onClick={() => handleDownloadModel(selectedModel)}
-                className="text-[10px] font-mono text-[#1864FF] hover:underline flex items-center gap-1 font-bold"
+                className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center space-x-1"
               >
-                <Download className="w-3 h-3" />
-                <span>SAVE .JOBLIB</span>
+                <Download className="w-3.5 h-3.5" />
+                <span>Export Pipeline</span>
               </button>
             </div>
 
             {diagLoading ? (
-              <div className="h-64 flex items-center justify-center font-mono text-xs text-zinc-500 gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-[#1864FF]" />
-                <span>EXTRACTING CONFUSION MATRIX & RESIDUALS...</span>
+              <div className="h-64 flex items-center justify-center text-xs font-mono text-zinc-500 space-x-2">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                <span>Generating confusion matrix &amp; residual vectors...</span>
               </div>
             ) : diagnostics ? (
               <div className="space-y-4">
                 {/* Confusion Matrix (Classification) */}
                 {diagnostics.confusion_matrix && (
                   <div className="space-y-2">
-                    <div className="font-mono text-[11px] text-zinc-400 uppercase font-bold">
-                      CONFUSION MATRIX INTENSITY GRID
+                    <div className="text-xs font-medium text-zinc-400">
+                      Confusion Matrix Intensity Grid
                     </div>
-                    <div className="overflow-x-auto p-2 bg-zinc-950 border border-zinc-800">
-                      <table className="w-full text-center font-mono text-xs">
+                    <div className="overflow-x-auto p-3 rounded-xl bg-zinc-950 border border-zinc-800">
+                      <table className="w-full text-center text-xs font-mono">
                         <thead>
-                          <tr className="border-b border-zinc-800 text-[10px] text-zinc-400">
-                            <th className="p-1">PRED \ TRUE</th>
+                          <tr className="border-b border-zinc-800 text-[11px] text-zinc-400">
+                            <th className="p-1.5">Pred \ True</th>
                             {(diagnostics.class_labels || []).map((l) => (
-                              <th key={l} className="p-1 uppercase">{l}</th>
+                              <th key={l} className="p-1.5">{l}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {diagnostics.confusion_matrix.map((row, rIdx) => (
                             <tr key={rIdx} className="border-b border-zinc-900">
-                              <td className="p-1 text-[10px] font-bold text-zinc-400 uppercase">
+                              <td className="p-1.5 text-[11px] font-semibold text-zinc-400">
                                 {diagnostics.class_labels?.[rIdx] || `C${rIdx}`}
                               </td>
                               {row.map((cellVal, cIdx) => (
                                 <td
                                   key={cIdx}
-                                  className={`p-2 font-bold ${
+                                  className={`p-2 font-bold rounded ${
                                     rIdx === cIdx
-                                      ? "bg-[#1864FF]/40 text-[#93C5FD]"
+                                      ? "bg-blue-600/30 text-blue-300"
                                       : cellVal > 0
-                                      ? "bg-red-950/40 text-red-300"
+                                      ? "bg-red-500/10 text-red-400"
                                       : "text-zinc-600"
                                   }`}
                                 >
@@ -400,23 +398,23 @@ export default function ComparisonPage() {
                 )}
 
                 {/* Residuals (Regression) */}
-                {diagnostics.residuals && (
+                {diagnostics.residuals && diagnostics.ground_truth && (
                   <div className="space-y-2">
-                    <div className="font-mono text-[11px] text-zinc-400 uppercase font-bold">
-                      RESIDUALS DISTRIBUTION (Y_TRUE VS RESIDUAL)
+                    <div className="text-xs font-medium text-zinc-400">
+                      Residuals Distribution (y_true vs residual error)
                     </div>
                     <div className="h-44 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <ScatterChart>
                           <CartesianGrid strokeDasharray="2 2" stroke="#27272A" />
-                          <XAxis dataKey="y_true" name="True Value" stroke="#71717A" fontSize={10} fontFamily="monospace" />
-                          <YAxis dataKey="residual" name="Residual" stroke="#71717A" fontSize={10} fontFamily="monospace" />
+                          <XAxis dataKey="y_true" name="True Value" stroke="#71717A" fontSize={11} />
+                          <YAxis dataKey="residual" name="Residual" stroke="#71717A" fontSize={11} />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: "#0C0C0E",
-                              border: "1px solid #000000",
-                              fontFamily: "monospace",
-                              fontSize: "11px",
+                              backgroundColor: "#101014",
+                              border: "1px solid #27272A",
+                              borderRadius: "8px",
+                              fontSize: "12px",
                               color: "#FFFFFF",
                             }}
                           />
@@ -425,7 +423,7 @@ export default function ComparisonPage() {
                               residual: r,
                               y_true: diagnostics.ground_truth?.[i] ?? i,
                             }))}
-                            fill="#9AE6B4"
+                            fill="#10B981"
                           />
                         </ScatterChart>
                       </ResponsiveContainer>
@@ -434,15 +432,15 @@ export default function ComparisonPage() {
                 )}
               </div>
             ) : (
-              <div className="h-64 flex items-center justify-center font-mono text-xs text-zinc-500">
-                SELECT A MODEL FROM THE SCOREBOARD ABOVE
+              <div className="h-64 flex items-center justify-center text-xs font-mono text-zinc-500">
+                Select an algorithm from the scoreboard above
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Floating Retro Dock */}
+      {/* Floating Command Dock */}
       <RetroDock />
     </div>
   );

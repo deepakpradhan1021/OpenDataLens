@@ -42,6 +42,18 @@ wheels/
 .pytest_cache/
 .coverage
 htmlcov/
+playwright-report/
+test-results/
+frontend/playwright-report/
+frontend/test-results/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+backend/.env
 
 # Streamlit
 .streamlit/secrets.toml

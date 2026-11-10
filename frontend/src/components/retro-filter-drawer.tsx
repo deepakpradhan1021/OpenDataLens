@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Filter, SlidersHorizontal, ChevronDown, ChevronUp, X, Check } from "lucide-react";
+import { Filter, SlidersHorizontal, ChevronDown, ChevronUp, X, Check, RotateCcw } from "lucide-react";
 
 export interface FilterState {
   task: string[];
@@ -22,23 +22,23 @@ interface RetroFilterDrawerProps {
   onToggleView: () => void;
 }
 
-const AVAILABLE_TASKS = ["CLASSIFICATION", "REGRESSION", "TABULAR", "NLP", "BENCHMARK"];
+const AVAILABLE_TASKS = ["Classification", "Regression", "Tabular", "NLP", "Benchmark"];
 const AVAILABLE_DOMAINS = [
-  "HEALTHCARE",
-  "FINTECH",
-  "REAL ESTATE",
-  "ROBOTICS",
-  "CLIMATE TECH",
-  "MEDIA",
-  "SPACE",
-  "CONSUMER",
+  "Healthcare",
+  "Fintech",
+  "Real Estate",
+  "Robotics",
+  "Climate Tech",
+  "Media",
+  "Space",
+  "Consumer",
 ];
 const AVAILABLE_SCALERS = [
-  "STANDARD SCALER",
-  "ROBUST SCALER",
-  "MIN-MAX",
-  "ONE-HOT ENCODER",
-  "MEDIAN IMPUTER",
+  "Standard Scaler",
+  "Robust Scaler",
+  "Min-Max Scaler",
+  "One-Hot Encoder",
+  "Median Imputer",
 ];
 const AVAILABLE_MODELS = [
   "Random Forest",
@@ -70,8 +70,10 @@ export function RetroFilterDrawer({
 
   const toggleItem = (listName: "task" | "domains" | "scalers" | "models", item: string) => {
     const list = filters[listName];
-    const exists = list.includes(item);
-    const updated = exists ? list.filter((i) => i !== item) : [...list, item];
+    const exists = list.some((i) => i.toLowerCase() === item.toLowerCase());
+    const updated = exists
+      ? list.filter((i) => i.toLowerCase() !== item.toLowerCase())
+      : [...list, item];
     onFilterChange({ ...filters, [listName]: updated });
   };
 
@@ -97,73 +99,56 @@ export function RetroFilterDrawer({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-start p-2 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-lg max-h-[90vh] flex flex-col retro-window-light rounded-none border border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-        {/* Window Chrome Header */}
-        <div className="flex items-center justify-between border-b border-black bg-white select-none">
-          <div className="flex items-center">
-            {/* Active Tab */}
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-[#1864FF] text-white font-mono text-xs font-bold uppercase tracking-wider">
-              <Filter className="w-3.5 h-3.5 fill-white" />
-              <span>FILTER RESULTS</span>
-              <ChevronDown className="w-3.5 h-3.5" />
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="w-full max-w-xl max-h-[85vh] flex flex-col rounded-2xl border border-zinc-800 bg-[#0E0E12] shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/80 bg-zinc-900/40">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
+              <Filter className="w-3.5 h-3.5" />
             </div>
-
-            {/* Toggle View Tab */}
-            <button
-              onClick={onToggleView}
-              className="px-3 py-2 border-r border-black font-mono text-xs font-bold uppercase tracking-wider hover:bg-zinc-100 flex items-center gap-1 text-black"
-            >
-              <span>TOGGLE VIEW ({viewMode.toUpperCase()})</span>
-            </button>
-
-            {/* Quick Fast Switch */}
-            <button
-              onClick={() =>
-                onFilterChange({
-                  ...filters,
-                  fastBaselinesOnly: !filters.fastBaselinesOnly,
-                })
-              }
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 font-mono text-xs font-bold uppercase tracking-wider hover:bg-zinc-100 text-black"
-            >
-              <div
-                className={`w-3.5 h-3.5 border border-black flex items-center justify-center ${
-                  filters.fastBaselinesOnly ? "bg-[#1864FF] text-white" : "bg-white"
-                }`}
-              >
-                {filters.fastBaselinesOnly && <Check className="w-2.5 h-2.5" />}
-              </div>
-              <span>FAST ONLY</span>
-            </button>
+            <div>
+              <h3 className="font-semibold text-sm text-white">Filter Workspace Datasets</h3>
+              <p className="text-[11px] text-zinc-400">Refine by task type, domain, size and models</p>
+            </div>
           </div>
 
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="p-2 border-l border-black hover:bg-red-500 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4 text-black" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {totalActive > 0 && (
+              <button
+                onClick={clearAll}
+                className="text-xs text-zinc-400 hover:text-white px-2 py-1 rounded-md hover:bg-zinc-800/60 transition-colors flex items-center space-x-1"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Scrollable Accordion Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#EDEEF0] text-black">
-          {/* 1. Dataset Rows / Size Slider (Years slider in reference) */}
-          <div className="border border-black bg-white p-3 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* 1. Dataset Sample Rows Range Slider */}
+          <div className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/30 space-y-3">
             <button
               onClick={() => toggleSection("rows")}
-              className="w-full flex items-center justify-between text-left font-mono text-xs font-bold uppercase tracking-wider pb-2 border-b border-zinc-200"
+              className="w-full flex items-center justify-between text-left text-xs font-semibold text-zinc-200"
             >
-              <span>DATASET SAMPLE ROWS</span>
-              {openSections.rows ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <span>Sample Rows Range</span>
+              {openSections.rows ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
             </button>
 
             {openSections.rows && (
-              <div className="pt-3 space-y-2">
-                <div className="flex justify-between font-mono text-[11px] text-zinc-600 font-bold">
-                  <span>{filters.minRows.toLocaleString()} ROWS</span>
-                  <span className="text-[#1864FF]">{filters.maxRows.toLocaleString()} MAX ROWS</span>
+              <div className="space-y-2 pt-1">
+                <div className="flex justify-between text-xs font-mono text-zinc-400">
+                  <span>{filters.minRows.toLocaleString()} rows</span>
+                  <span className="text-blue-400 font-medium">Up to {filters.maxRows.toLocaleString()} rows</span>
                 </div>
                 <input
                   type="range"
@@ -174,37 +159,38 @@ export function RetroFilterDrawer({
                   onChange={(e) =>
                     onFilterChange({ ...filters, maxRows: Number(e.target.value) })
                   }
-                  className="w-full h-2 bg-zinc-200 rounded-none appearance-none cursor-pointer accent-[#1864FF]"
+                  className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-blue-500"
                 />
               </div>
             )}
           </div>
 
-          {/* 2. Task Categories (Industries in reference) */}
-          <div className="border border-black bg-white p-3 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          {/* 2. Task Categories */}
+          <div className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/30 space-y-3">
             <button
               onClick={() => toggleSection("tasks")}
-              className="w-full flex items-center justify-between text-left font-mono text-xs font-bold uppercase tracking-wider pb-2 border-b border-zinc-200"
+              className="w-full flex items-center justify-between text-left text-xs font-semibold text-zinc-200"
             >
-              <div className="flex items-center gap-1.5">
-                <span>TASK CATEGORIES</span>
-                <span className="w-2 h-2 bg-[#1864FF] inline-block" />
-              </div>
-              {openSections.tasks ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <span>Task Categories</span>
+              {openSections.tasks ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
             </button>
 
             {openSections.tasks && (
-              <div className="pt-3 flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {AVAILABLE_TASKS.map((task) => {
-                  const isActive = filters.task.includes(task);
+                  const isActive = filters.task.some((t) => t.toLowerCase() === task.toLowerCase());
                   return (
                     <button
                       key={task}
                       onClick={() => toggleItem("task", task)}
-                      className={`retro-pill ${isActive ? "active" : ""}`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center space-x-1.5 ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30 border border-blue-500"
+                          : "bg-zinc-800/60 text-zinc-300 hover:bg-zinc-800 border border-zinc-700/50"
+                      }`}
                     >
                       <span>{task}</span>
-                      {isActive && <X className="w-3 h-3 ml-0.5" />}
+                      {isActive && <X className="w-3 h-3" />}
                     </button>
                   );
                 })}
@@ -212,31 +198,32 @@ export function RetroFilterDrawer({
             )}
           </div>
 
-          {/* 3. Domains / Industries */}
-          <div className="border border-black bg-white p-3 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          {/* 3. Domains */}
+          <div className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/30 space-y-3">
             <button
               onClick={() => toggleSection("domains")}
-              className="w-full flex items-center justify-between text-left font-mono text-xs font-bold uppercase tracking-wider pb-2 border-b border-zinc-200"
+              className="w-full flex items-center justify-between text-left text-xs font-semibold text-zinc-200"
             >
-              <div className="flex items-center gap-1.5">
-                <span>DATA DOMAINS</span>
-                <span className="w-2 h-2 bg-[#1864FF] inline-block" />
-              </div>
-              {openSections.domains ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <span>Domains &amp; Industries</span>
+              {openSections.domains ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
             </button>
 
             {openSections.domains && (
-              <div className="pt-3 flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {AVAILABLE_DOMAINS.map((domain) => {
-                  const isActive = filters.domains.includes(domain);
+                  const isActive = filters.domains.some((d) => d.toLowerCase() === domain.toLowerCase());
                   return (
                     <button
                       key={domain}
                       onClick={() => toggleItem("domains", domain)}
-                      className={`retro-pill ${isActive ? "active" : ""}`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center space-x-1.5 ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30 border border-blue-500"
+                          : "bg-zinc-800/60 text-zinc-300 hover:bg-zinc-800 border border-zinc-700/50"
+                      }`}
                     >
                       <span>{domain}</span>
-                      {isActive && <X className="w-3 h-3 ml-0.5" />}
+                      {isActive && <X className="w-3 h-3" />}
                     </button>
                   );
                 })}
@@ -244,31 +231,32 @@ export function RetroFilterDrawer({
             )}
           </div>
 
-          {/* 4. Preprocessing & Scalers (Team Members in reference) */}
-          <div className="border border-black bg-white p-3 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          {/* 4. Preprocessing & Scalers */}
+          <div className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/30 space-y-3">
             <button
               onClick={() => toggleSection("scalers")}
-              className="w-full flex items-center justify-between text-left font-mono text-xs font-bold uppercase tracking-wider pb-2 border-b border-zinc-200"
+              className="w-full flex items-center justify-between text-left text-xs font-semibold text-zinc-200"
             >
-              <div className="flex items-center gap-1.5">
-                <span>PREPROCESSING & SCALERS</span>
-                <span className="w-2 h-2 bg-[#1864FF] inline-block" />
-              </div>
-              {openSections.scalers ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <span>Preprocessing Scalers</span>
+              {openSections.scalers ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
             </button>
 
             {openSections.scalers && (
-              <div className="pt-3 flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {AVAILABLE_SCALERS.map((scaler) => {
-                  const isActive = filters.scalers.includes(scaler);
+                  const isActive = filters.scalers.some((s) => s.toLowerCase() === scaler.toLowerCase());
                   return (
                     <button
                       key={scaler}
                       onClick={() => toggleItem("scalers", scaler)}
-                      className={`retro-pill ${isActive ? "active" : ""}`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center space-x-1.5 ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30 border border-blue-500"
+                          : "bg-zinc-800/60 text-zinc-300 hover:bg-zinc-800 border border-zinc-700/50"
+                      }`}
                     >
                       <span>{scaler}</span>
-                      {isActive && <X className="w-3 h-3 ml-0.5" />}
+                      {isActive && <X className="w-3 h-3" />}
                     </button>
                   );
                 })}
@@ -277,28 +265,30 @@ export function RetroFilterDrawer({
           </div>
 
           {/* 5. ML Models */}
-          <div className="border border-black bg-white p-3 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <div className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/30 space-y-3">
             <button
               onClick={() => toggleSection("models")}
-              className="w-full flex items-center justify-between text-left font-mono text-xs font-bold uppercase tracking-wider pb-2 border-b border-zinc-200"
+              className="w-full flex items-center justify-between text-left text-xs font-semibold text-zinc-200"
             >
-              <span>MODEL ARCHITECTURES</span>
-              {openSections.models ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <span>Model Architectures</span>
+              {openSections.models ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
             </button>
 
             {openSections.models && (
-              <div className="pt-3 space-y-2">
+              <div className="space-y-2 pt-1">
                 {AVAILABLE_MODELS.map((m) => {
                   const checked = filters.models.includes(m);
                   return (
                     <label
                       key={m}
                       onClick={() => toggleItem("models", m)}
-                      className="flex items-center gap-2 text-xs font-mono font-bold cursor-pointer select-none hover:text-[#1864FF]"
+                      className="flex items-center space-x-2.5 text-xs text-zinc-300 cursor-pointer select-none hover:text-white"
                     >
                       <div
-                        className={`w-4 h-4 border border-black flex items-center justify-center ${
-                          checked ? "bg-[#1864FF] text-white" : "bg-white"
+                        className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                          checked
+                            ? "bg-blue-600 border-blue-500 text-white"
+                            : "bg-zinc-800 border-zinc-700"
                         }`}
                       >
                         {checked && <Check className="w-3 h-3" />}
@@ -312,20 +302,19 @@ export function RetroFilterDrawer({
           </div>
         </div>
 
-        {/* Bottom Action Footer */}
-        <div className="flex border-t border-black bg-white font-mono text-xs font-bold uppercase tracking-wider">
+        {/* Footer Actions */}
+        <div className="p-4 border-t border-zinc-800/80 bg-zinc-900/40 flex items-center justify-between">
           <button
             onClick={clearAll}
-            className="w-1/2 py-3 text-center border-r border-black hover:bg-zinc-100 text-zinc-700 flex items-center justify-center gap-1.5"
+            className="text-xs text-zinc-400 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
           >
-            <span>CLEAR FILTERS</span>
-            <X className="w-3.5 h-3.5" />
+            Clear all
           </button>
           <button
             onClick={onClose}
-            className="w-1/2 py-3 text-center bg-[#1864FF] text-white hover:bg-[#0B4FD9] flex items-center justify-center gap-1.5"
+            className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm shadow-blue-600/30 transition-all"
           >
-            <span>APPLY FILTERS ({totalActive})</span>
+            Apply Filters ({totalActive})
           </button>
         </div>
       </div>
