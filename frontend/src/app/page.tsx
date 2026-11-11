@@ -94,7 +94,7 @@ const WORKFLOW_STEPS = [
   {
     step: "03",
     title: "Leak-Free ML Studio",
-    desc: "Stratified splitting with preprocessors fitted strictly on training folds. Zero data leakage guaranteed.",
+    desc: "Stratified splitting with preprocessors fitted strictly on training folds to prevent distribution leakage.",
     href: "/studio",
     icon: Cpu,
     color: "text-indigo-400",
@@ -110,7 +110,7 @@ const WORKFLOW_STEPS = [
   {
     step: "05",
     title: "Explainable AI (XAI)",
-    desc: "Permutation feature importance on test splits and native tree/linear weights without collinearity bias.",
+    desc: "Permutation feature importance on test splits (accounting for correlated feature redundancy) and native estimator weights.",
     href: "/comparison",
     icon: BrainCircuit,
     color: "text-purple-400",
@@ -118,7 +118,7 @@ const WORKFLOW_STEPS = [
   {
     step: "06",
     title: "Data Drift Detection",
-    desc: "Continuous distribution monitoring via Population Stability Index (PSI) and Kolmogorov-Smirnov tests.",
+    desc: "On-demand distribution shift analysis via Population Stability Index (PSI) and Kolmogorov-Smirnov tests.",
     href: "/drift",
     icon: Activity,
     color: "text-rose-400",
@@ -385,20 +385,20 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-zinc-800/80 py-8 px-4 text-center text-xs text-zinc-500 space-y-2">
-        <div className="flex items-center justify-center space-x-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
           <Link href="/dashboard" className="hover:text-zinc-300">Dashboard</Link>
-          <span>•</span>
+          <span className="text-zinc-700 hidden sm:inline">•</span>
           <Link href="/explorer" className="hover:text-zinc-300">Explorer</Link>
-          <span>•</span>
+          <span className="text-zinc-700 hidden sm:inline">•</span>
           <Link href="/quality" className="hover:text-zinc-300">Quality</Link>
-          <span>•</span>
+          <span className="text-zinc-700 hidden sm:inline">•</span>
           <Link href="/studio" className="hover:text-zinc-300">ML Studio</Link>
-          <span>•</span>
+          <span className="text-zinc-700 hidden sm:inline">•</span>
           <Link href="/drift" className="hover:text-zinc-300">Data Drift</Link>
-          <span>•</span>
+          <span className="text-zinc-700 hidden sm:inline">•</span>
           <Link href="/reports" className="hover:text-zinc-300">Reports</Link>
         </div>
-        <div>OpenDataLens Platform • Open-Source Machine Learning Workspace under MIT License</div>
+        <div className="text-[11px] text-zinc-600">OpenDataLens Platform • Interactive Portfolio &amp; Demonstration under MIT License</div>
       </footer>
     </div>
   );

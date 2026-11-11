@@ -89,9 +89,9 @@ export function Navigation() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-[#09090B]/85 backdrop-blur-xl transition-all duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-5 xl:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo & Nav */}
-        <div className="flex items-center space-x-4 xl:space-x-8">
+        <div className="flex items-center space-x-2 xl:space-x-6">
           <Link href="/" className="flex items-center space-x-2.5 group shrink-0">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-indigo-600 to-violet-600 flex items-center justify-center shadow-sm shadow-blue-500/25 group-hover:scale-105 transition-transform duration-200">
               <Layers className="w-4 h-4 text-white" />
@@ -107,7 +107,7 @@ export function Navigation() {
           </Link>
 
           {/* Desktop Nav Items */}
-          <nav className="hidden lg:flex items-center space-x-1 xl:space-x-1.5">
+          <nav className="hidden lg:flex items-center space-x-0.5 xl:space-x-1">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -115,7 +115,7 @@ export function Navigation() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all duration-150 ${
+                  className={`flex items-center space-x-1 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all duration-150 ${
                     isActive
                       ? "bg-zinc-800/90 text-white shadow-sm border border-zinc-700/60 font-semibold"
                       : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40"
@@ -130,7 +130,7 @@ export function Navigation() {
         </div>
 
         {/* Right Station Controls */}
-        <div className="hidden lg:flex items-center space-x-2.5 shrink-0">
+        <div className="hidden lg:flex items-center space-x-1.5 xl:space-x-2.5 shrink-0">
           {/* Real Health Badge */}
           <div
             className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono border whitespace-nowrap shrink-0 transition-colors ${
@@ -158,7 +158,7 @@ export function Navigation() {
           {activeDatasetName && (
             <Link
               href="/explorer"
-              className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono whitespace-nowrap shrink-0 transition-colors hover:bg-blue-500/15"
+              className="hidden 2xl:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono whitespace-nowrap shrink-0 transition-colors hover:bg-blue-500/15"
               title="Click to view active dataset"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
@@ -179,7 +179,7 @@ export function Navigation() {
 
           <Link
             href="/studio"
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-600/30 whitespace-nowrap shrink-0 transition-all duration-150 active:scale-95"
+            className="hidden xl:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-600/30 whitespace-nowrap shrink-0 transition-all duration-150 active:scale-95"
           >
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
             <span className="whitespace-nowrap">Launch Studio</span>
