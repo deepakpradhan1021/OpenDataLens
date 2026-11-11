@@ -72,3 +72,6 @@ Thumbs.db
 *.pkl
 models_cache/
 temp_data/
+data/
+*.tsbuildinfo
+master_prompt_content.txt

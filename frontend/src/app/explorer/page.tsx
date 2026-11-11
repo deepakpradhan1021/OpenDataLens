@@ -51,7 +51,7 @@ export default function ExplorerPage() {
 
   useEffect(() => {
     api.getCuratedDatasets().then(setCuratedList).catch(console.error);
-    api.getActiveDataset("default").then(setActiveDataset).catch(() => null);
+    api.getActiveDataset().then(setActiveDataset).catch(() => null);
   }, []);
 
   const handleLoadCurated = async (id: string) => {
@@ -59,7 +59,7 @@ export default function ExplorerPage() {
     setError(null);
     setSuccessMsg(null);
     try {
-      const data = await api.loadCuratedDataset(id, "default");
+      const data = await api.loadCuratedDataset(id);
       setActiveDataset(data);
       setSuccessMsg(`Benchmark '${data.metadata.name}' loaded successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
     } catch (err: any) {
@@ -88,7 +88,7 @@ export default function ExplorerPage() {
     setError(null);
     setSuccessMsg(null);
     try {
-      const data = await api.loadHFDataset(datasetName, "train", 2000, "default");
+      const data = await api.loadHFDataset(datasetName, "train", 2000);
       setActiveDataset(data);
       setSuccessMsg(`Streamed '${datasetName}' via HF Dataset API (${data.total_rows.toLocaleString()} rows).`);
     } catch (err: any) {
@@ -105,7 +105,7 @@ export default function ExplorerPage() {
     setError(null);
     setSuccessMsg(null);
     try {
-      const data = await api.uploadCSV(file, "default");
+      const data = await api.uploadCSV(file);
       setActiveDataset(data);
       setSuccessMsg(`Parsed CSV '${file.name}' (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
     } catch (err: any) {

@@ -12,7 +12,8 @@ from typing import Dict, List, Tuple, Any, Optional
 import pandas as pd
 import numpy as np
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
+from sklearn.metrics import accuracy_score, r2_score
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -253,3 +254,62 @@ def train_model_pipeline(
     fit_time = round(time.perf_counter() - start_time, 4)
 
     return full_pipeline, fit_time
+
+
+def run_kfold_cross_validation(
+    model_name: str,
+    problem_type: str,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    scaler_type: str = "standard",
+    cv_folds: int = 5,
+    random_state: int = 42
+) -> Dict[str, Any]:
+    """
+    Execute leak-free K-Fold or Stratified K-Fold cross validation.
+    The preprocessor is fitted strictly on each training fold and only transforms the validation fold.
+    """
+    if len(X_train) < cv_folds * 2:
+        cv_folds = max(2, len(X_train) // 2)
+
+    if problem_type == "classification":
+        val_counts = y_train.value_counts()
+        if (val_counts >= cv_folds).all() and len(val_counts) > 1:
+            splitter = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
+            splits = list(splitter.split(X_train, y_train))
+        else:
+            splitter = KFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
+            splits = list(splitter.split(X_train))
+    else:
+        splitter = KFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
+        splits = list(splitter.split(X_train))
+
+    scores = []
+    for train_idx, val_idx in splits:
+        X_tr, X_val = X_train.iloc[train_idx], X_train.iloc[val_idx]
+        y_tr, y_val = y_train.iloc[train_idx], y_train.iloc[val_idx]
+
+        pipe, _ = train_model_pipeline(
+            model_name=model_name,
+            problem_type=problem_type,
+            X_train=X_tr,
+            y_train=y_tr,
+            scaler_type=scaler_type,
+            random_state=random_state
+        )
+        preds = pipe.predict(X_val)
+
+        if problem_type == "classification":
+            score = float(accuracy_score(y_val, preds))
+        else:
+            score = float(r2_score(y_val, preds))
+        scores.append(round(score, 4))
+
+    return {
+        "folds": scores,
+        "mean": float(round(np.mean(scores), 4)),
+        "std": float(round(np.std(scores), 4)),
+        "metric": "Accuracy" if problem_type == "classification" else "R² Score",
+        "num_folds": len(scores)
+    }
+

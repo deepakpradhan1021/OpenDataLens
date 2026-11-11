@@ -103,13 +103,28 @@ def load_hf(req: LoadHFRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB limit
+
+
 @router.post("/upload-csv", response_model=DatasetPreviewResponse)
 async def upload_csv(
     file: UploadFile = File(...),
     session_id: str = Form("default")
 ):
+    if not file.filename or not (file.filename.lower().endswith(".csv") or file.filename.lower().endswith(".txt")):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file format. Only standard CSV (.csv) or text delimiter (.txt) files are supported."
+        )
+
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Uploaded file exceeds the maximum 25 MB size limit."
+        )
+
     try:
-        content = await file.read()
         df, meta = load_csv_dataset(content, filename=file.filename or "upload.csv")
         store.set_dataset(session_id, df, meta)
         analysis = analyze_data_quality(df)
@@ -117,6 +132,18 @@ async def upload_csv(
         return _build_preview_response(df, meta, session_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process CSV file: {str(e)}")
+
+
+@router.post("/clear-workspace")
+def clear_workspace(session_id: str = Query("default")):
+    """Clear all loaded datasets, models, evaluations, and jobs for the active workspace."""
+    cleared = store.clear_session(session_id)
+    return {
+        "status": "cleared",
+        "session_id": session_id,
+        "cleared": cleared,
+        "message": "Workspace successfully cleared and resources released."
+    }
 
 
 @router.get("/active", response_model=DatasetPreviewResponse)

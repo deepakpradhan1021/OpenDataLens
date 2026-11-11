@@ -38,30 +38,38 @@ def load_curated_dataset(dataset_id: str) -> Tuple[pd.DataFrame, Dict[str, Any]]
     """
     Load an offline-ready curated benchmark dataset from scikit-learn or embedded data.
     """
-    meta = next((item for item in CURATED_DATASETS if item["id"] == dataset_id), None)
+    # Support canonical IDs and backward-compatible aliases
+    dataset_aliases = {
+        "wine_quality": "wine_recognition",
+        "titanic": "titanic_synthetic",
+        "titanic_sample": "titanic_synthetic",
+    }
+    canonical_id = dataset_aliases.get(dataset_id, dataset_id)
+
+    meta = next((item for item in CURATED_DATASETS if item["id"] == canonical_id), None)
     if not meta:
         raise ValueError(f"Unknown curated dataset ID: '{dataset_id}'. Choose from: {[d['id'] for d in CURATED_DATASETS]}")
 
-    if dataset_id == "iris":
+    if canonical_id == "iris":
         raw = load_iris(as_frame=True)
         df = raw.frame.copy()
-        # Clean target column name
         if "target" not in df.columns:
             df["target"] = raw.target
-    elif dataset_id == "wine_quality":
+    elif canonical_id == "wine_recognition":
         raw = load_wine(as_frame=True)
         df = raw.frame.copy()
-        df.rename(columns={"target": "quality"}, inplace=True)
-    elif dataset_id == "california_housing":
+        if "target" not in df.columns:
+            df["target"] = raw.target
+    elif canonical_id == "california_housing":
         raw = fetch_california_housing(as_frame=True)
         df = raw.frame.copy()
-    elif dataset_id == "breast_cancer":
+    elif canonical_id == "breast_cancer":
         raw = load_breast_cancer(as_frame=True)
         df = raw.frame.copy()
-    elif dataset_id == "diabetes":
+    elif canonical_id == "diabetes":
         raw = load_diabetes(as_frame=True)
         df = raw.frame.copy()
-    elif dataset_id == "titanic_sample":
+    elif canonical_id == "titanic_synthetic":
         # Generate realistic Titanic benchmark structure
         np.random.seed(42)
         n = 891
@@ -93,7 +101,7 @@ def load_curated_dataset(dataset_id: str) -> Tuple[pd.DataFrame, Dict[str, Any]]
             "Embarked": embarked
         })
     else:
-        raise ValueError(f"Curated dataset loader not implemented for: {dataset_id}")
+        raise ValueError(f"Curated dataset loader not implemented for: {canonical_id}")
 
     dataset_info = {
         "id": meta["id"],

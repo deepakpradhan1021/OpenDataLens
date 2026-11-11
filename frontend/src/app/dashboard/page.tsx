@@ -32,13 +32,13 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const ds = await api.getActiveDataset("default").catch(() => null);
+        const ds = await api.getActiveDataset().catch(() => null);
         setActiveDataset(ds);
 
         if (ds) {
-          const q = await api.getQualityAnalysis("default").catch(() => null);
+          const q = await api.getQualityAnalysis().catch(() => null);
           setQuality(q);
-          const comp = await api.getModelComparison("default").catch(() => null);
+          const comp = await api.getModelComparison().catch(() => null);
           setComparison(comp);
         }
       } catch (e) {

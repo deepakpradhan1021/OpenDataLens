@@ -8,9 +8,12 @@ from pydantic import BaseModel, Field
 
 # Health Check
 class HealthResponse(BaseModel):
-    status: str = "ok"
+    status: str = "operational"
     version: str = "1.0.0"
-    platform: str = "OpenDataLens"
+    platform: str = "OpenDataLens SaaS"
+    timestamp: Optional[str] = None
+    uptime_seconds: Optional[float] = None
+    active_sessions: Optional[int] = None
 
 
 # Dataset Schemas
@@ -114,6 +117,7 @@ class TrainModelsRequest(BaseModel):
     scaler_type: str = "standard"  # "standard" | "robust" | "minmax"
     test_size: float = Field(default=0.2, ge=0.05, le=0.5)
     random_state: int = 42
+    cv_folds: int = Field(default=5, ge=2, le=10)
 
 
 class TrainJobStartResponse(BaseModel):

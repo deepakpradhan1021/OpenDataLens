@@ -1,12 +1,15 @@
 """
 Machine Learning Studio Routes for OpenDataLens.
-Supports target candidate detection, asynchronous model training, and job status polling.
+Supports target candidate detection, asynchronous model training with K-Fold cross validation,
+experiment run history tracking, and job status polling.
 """
 
+import time
 import uuid
 import threading
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import JSONResponse
 import pandas as pd
 
 from backend.api.session_store import store
@@ -19,7 +22,8 @@ from backend.api.models import (
 from core.ml_studio import (
     detect_target_candidates,
     prepare_train_test_split,
-    train_model_pipeline
+    train_model_pipeline,
+    run_kfold_cross_validation
 )
 from core.evaluator import (
     evaluate_classification_model,
@@ -51,6 +55,7 @@ def get_target_candidates(session_id: str = "default"):
 
 def _async_train_worker(job_id: str, req: TrainModelsRequest):
     """Background worker function executing the training and evaluation loop."""
+    start_total_time = time.time()
     try:
         store.update_job(job_id, status="running", progress=5, current_model="Preparing Data Split")
         df = store.get_dataset(req.session_id)
@@ -77,10 +82,25 @@ def _async_train_worker(job_id: str, req: TrainModelsRequest):
             model_display_name = available_labels.get(model_key, model_key)
             store.update_job(
                 job_id,
-                progress=15 + int(((i) / total_models) * 75),
+                progress=15 + int(((i) / total_models) * 70),
                 current_model=f"Training {model_display_name} ({i+1}/{total_models})"
             )
 
+            # 1. Leak-free Cross-Validation
+            try:
+                cv_scores = run_kfold_cross_validation(
+                    model_name=model_key,
+                    problem_type=req.problem_type,
+                    X_train=X_train,
+                    y_train=y_train,
+                    scaler_type=req.scaler_type,
+                    cv_folds=req.cv_folds,
+                    random_state=req.random_state
+                )
+            except Exception:
+                cv_scores = None
+
+            # 2. Train on full X_train for test evaluation
             pipe, fit_time = train_model_pipeline(
                 model_name=model_key,
                 problem_type=req.problem_type,
@@ -90,14 +110,15 @@ def _async_train_worker(job_id: str, req: TrainModelsRequest):
                 random_state=req.random_state
             )
 
-            # Evaluate on unseen test set
+            # 3. Evaluate on unseen test set
             if req.problem_type == "classification":
                 eval_res = evaluate_classification_model(
                     pipeline=pipe,
                     X_test=X_test,
                     y_test=y_test,
                     model_display_name=model_display_name,
-                    fit_time=fit_time
+                    fit_time=fit_time,
+                    cv_scores=cv_scores
                 )
             else:
                 eval_res = evaluate_regression_model(
@@ -105,13 +126,14 @@ def _async_train_worker(job_id: str, req: TrainModelsRequest):
                     X_test=X_test,
                     y_test=y_test,
                     model_display_name=model_display_name,
-                    fit_time=fit_time
+                    fit_time=fit_time,
+                    cv_scores=cv_scores
                 )
 
             trained_models_dict[model_key] = pipe
             evaluations_dict[model_key] = eval_res
 
-        store.update_job(job_id, progress=95, current_model="Synthesizing Comparison Scoreboard")
+        store.update_job(job_id, progress=92, current_model="Synthesizing Comparison Scoreboard")
         comp_df = build_comparison_table(evaluations_dict, problem_type=req.problem_type)
 
         # Store in session
@@ -121,6 +143,7 @@ def _async_train_worker(job_id: str, req: TrainModelsRequest):
             "feature_cols": req.feature_cols,
             "test_size": req.test_size,
             "scaler": req.scaler_type,
+            "cv_folds": req.cv_folds,
             "X_test": X_test,
             "y_test": y_test
         }
@@ -131,6 +154,27 @@ def _async_train_worker(job_id: str, req: TrainModelsRequest):
             model_evaluations=evaluations_dict,
             comparison_df=comp_df
         )
+
+        # Record Experiment Run
+        duration_sec = round(time.time() - start_total_time, 2)
+        dataset_meta = store.get_metadata(req.session_id) or {}
+        exp_record = {
+            "run_id": f"run_{uuid.uuid4().hex[:8]}",
+            "timestamp": time.time(),
+            "duration_seconds": duration_sec,
+            "dataset_name": dataset_meta.get("name", "Active Dataset"),
+            "dataset_rows": len(df),
+            "dataset_cols": len(df.columns),
+            "problem_type": req.problem_type,
+            "target_col": req.target_col,
+            "feature_count": len(req.feature_cols),
+            "selected_models": [available_labels.get(k, k) for k in req.selected_models],
+            "cv_folds": req.cv_folds,
+            "scaler": req.scaler_type,
+            "champion_model": comp_df.iloc[0]["Model"] if not comp_df.empty else "N/A",
+            "scoreboard": comp_df.to_dict(orient="records")
+        }
+        store.record_experiment(req.session_id, exp_record)
 
         store.update_job(job_id, status="completed", progress=100, current_model="Complete")
 
@@ -179,4 +223,33 @@ def get_job_status(job_id: str):
         current_model=job["current_model"],
         error=job["error"],
         completed_at=job.get("completed_at")
+    )
+
+
+@router.get("/experiments")
+def get_experiments(session_id: str = "default"):
+    """List reproducible experiment runs recorded in this workspace session."""
+    runs = store.get_experiments(session_id)
+    return {
+        "session_id": session_id,
+        "total_runs": len(runs),
+        "experiments": runs
+    }
+
+
+@router.get("/experiments/export")
+def export_experiments(session_id: str = "default"):
+    """Export all experiment tracking records as JSON."""
+    runs = store.get_experiments(session_id)
+    return JSONResponse(
+        content={
+            "platform": "OpenDataLens",
+            "session_id": session_id,
+            "exported_at": time.time(),
+            "total_runs": len(runs),
+            "experiments": runs
+        },
+        headers={
+            "Content-Disposition": f"attachment; filename=experiments_{session_id[:8]}.json"
+        }
     )

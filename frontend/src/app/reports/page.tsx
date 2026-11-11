@@ -28,7 +28,7 @@ export default function ReportsPage() {
   useEffect(() => {
     async function init() {
       try {
-        const comp = await api.getModelComparison("default");
+        const comp = await api.getModelComparison();
         setComparison(comp);
         if (comp.available_models.length > 0) {
           setSelectedModel(comp.champion.name || comp.available_models[0]);
@@ -80,11 +80,11 @@ export default function ReportsPage() {
     );
   }
 
-  const htmlUrl = api.getHtmlReportUrl("default");
-  const jsonUrl = api.getJsonReportUrl("default");
-  const mdUrl = api.getMarkdownReportUrl("default");
-  const modelUrl = api.getModelDownloadUrl(selectedModel, "default");
-  const csvUrl = api.getDatasetCsvUrl("default");
+  const htmlUrl = api.getHtmlReportUrl();
+  const jsonUrl = api.getJsonReportUrl();
+  const mdUrl = api.getMarkdownReportUrl();
+  const modelUrl = api.getModelDownloadUrl(selectedModel);
+  const csvUrl = api.getDatasetCsvUrl();
 
   return (
     <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">

@@ -54,6 +54,7 @@ export default function StudioPage() {
   const [scalerType, setScalerType] = useState<"standard" | "robust" | "minmax">("standard");
   const [testSize, setTestSize] = useState(0.2);
   const [randomSeed, setRandomSeed] = useState(42);
+  const [cvFolds, setCvFolds] = useState(5);
 
   // Job Polling State
   const [jobId, setJobId] = useState<string | null>(null);
@@ -64,7 +65,7 @@ export default function StudioPage() {
   useEffect(() => {
     async function init() {
       try {
-        const c = await api.getTargetCandidates("default");
+        const c = await api.getTargetCandidates();
         setCandidates(c);
 
         const initialTask = c.suggested_task === "regression" ? "regression" : "classification";
@@ -145,7 +146,6 @@ export default function StudioPage() {
 
     try {
       const resp = await api.trainModels({
-        session_id: "default",
         problem_type: problemType,
         target_col: targetCol,
         feature_cols: featureCols,
@@ -153,6 +153,7 @@ export default function StudioPage() {
         scaler_type: scalerType,
         test_size: testSize,
         random_state: randomSeed,
+        cv_folds: cvFolds,
       });
 
       setJobId(resp.job_id);
@@ -427,6 +428,29 @@ export default function StudioPage() {
                   onChange={(e) => setTestSize(parseFloat(e.target.value))}
                   className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-blue-500"
                 />
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-between text-xs text-zinc-400">
+                  <span>Cross-Validation Folds</span>
+                  <span className="text-blue-400 font-mono font-medium">{cvFolds}-Fold CV</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-xs">
+                  {[3, 5, 10].map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setCvFolds(f)}
+                      className={`p-1.5 rounded-lg font-mono text-center transition-all ${
+                        cvFolds === f
+                          ? "bg-blue-600 text-white font-semibold shadow-sm"
+                          : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                      }`}
+                    >
+                      {f}-Fold
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

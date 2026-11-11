@@ -1,29 +1,30 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
   Database,
-  Cpu,
   ShieldCheck,
-  BarChart3,
-  CheckCircle2,
-  Sparkles,
-  ExternalLink,
-  Layers,
-  ArrowUpRight,
-  Loader2,
+  Cpu,
+  BarChart2,
   FileCode,
-  Github,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  Activity,
+  Layers,
+  BrainCircuit,
+  Sliders,
+  ExternalLink,
+  Code2,
+  GitBranch,
   Play,
   Terminal,
+  HelpCircle,
+  FileSpreadsheet,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { DatasetPreviewResponse } from "@/lib/types";
-import { RetroDock } from "@/components/retro-dock";
-import { FilterState } from "@/components/retro-filter-drawer";
 
 const PRESET_DATASETS = [
   {
@@ -33,25 +34,25 @@ const PRESET_DATASETS = [
     rows: 150,
     cols: 5,
     tag: "Botany",
-    desc: "Classic 3-class morphological benchmark for multi-class classification.",
+    desc: "Classic 3-class morphological benchmark with sepal and petal measurements.",
+  },
+  {
+    id: "wine_recognition",
+    name: "Wine Recognition Benchmark",
+    task: "Classification",
+    rows: 178,
+    cols: 14,
+    tag: "Chemistry",
+    desc: "178 chemical samples across 3 cultivars with 13 continuous measurements.",
   },
   {
     id: "california_housing",
-    name: "California Housing",
+    name: "California Housing Prices",
     task: "Regression",
     rows: 20640,
     cols: 9,
     tag: "Real Estate",
     desc: "Census block housing values with geospatial coordinates and median income.",
-  },
-  {
-    id: "wine_quality",
-    name: "Wine Quality Benchmark",
-    task: "Classification",
-    rows: 1599,
-    cols: 12,
-    tag: "Food Chemistry",
-    desc: "Physicochemical attributes scoring wine quality from acidity to alcohol.",
   },
   {
     id: "diabetes",
@@ -63,33 +64,91 @@ const PRESET_DATASETS = [
     desc: "Ten baseline clinical features tracking disease progression in patients.",
   },
   {
-    id: "titanic",
-    name: "Titanic Passenger Survival",
+    id: "titanic_synthetic",
+    name: "Titanic Survival (Synthetic Demo)",
     task: "Classification",
     rows: 891,
-    cols: 12,
-    tag: "Demographics",
-    desc: "Survival prediction demonstrating categorical imputation and passenger demographics.",
+    cols: 9,
+    tag: "Synthetic Demo",
+    desc: "Synthetic demo benchmark modeled on passenger demographics for tabular ML testing.",
   },
 ];
 
-export default function LandingPage() {
-  const router = useRouter();
-  const [selectedDatasetId, setSelectedDatasetId] = useState("iris");
-  const [loading, setLoading] = useState(false);
-  const [loadedDataset, setLoadedDataset] = useState<DatasetPreviewResponse | null>(null);
-  const [loadSuccess, setLoadSuccess] = useState(false);
+const WORKFLOW_STEPS = [
+  {
+    step: "01",
+    title: "Dataset Discovery",
+    desc: "Stream tabular datasets from Hugging Face Hub, load curated Scikit-learn benchmarks, or upload custom CSVs.",
+    href: "/explorer",
+    icon: Database,
+    color: "text-blue-400",
+  },
+  {
+    step: "02",
+    title: "Quality Intelligence",
+    desc: "Automated completeness audit, IQR numerical outlier detection, target leakage warning, and class imbalance checks.",
+    href: "/quality",
+    icon: ShieldCheck,
+    color: "text-emerald-400",
+  },
+  {
+    step: "03",
+    title: "Leak-Free ML Studio",
+    desc: "Stratified splitting with preprocessors fitted strictly on training folds. Zero data leakage guaranteed.",
+    href: "/studio",
+    icon: Cpu,
+    color: "text-indigo-400",
+  },
+  {
+    step: "04",
+    title: "Leaderboard & Scoreboard",
+    desc: "Multi-model tournament ranking with 5-Fold Cross Validation mean ± standard deviation scores.",
+    href: "/comparison",
+    icon: BarChart2,
+    color: "text-amber-400",
+  },
+  {
+    step: "05",
+    title: "Explainable AI (XAI)",
+    desc: "Permutation feature importance on test splits and native tree/linear weights without collinearity bias.",
+    href: "/comparison",
+    icon: BrainCircuit,
+    color: "text-purple-400",
+  },
+  {
+    step: "06",
+    title: "Data Drift Detection",
+    desc: "Continuous distribution monitoring via Population Stability Index (PSI) and Kolmogorov-Smirnov tests.",
+    href: "/drift",
+    icon: Activity,
+    color: "text-rose-400",
+  },
+  {
+    step: "07",
+    title: "Audits & Model Export",
+    desc: "Synthesize full Markdown/HTML/JSON dossiers and download serializable Scikit-learn .joblib binaries.",
+    href: "/reports",
+    icon: FileCode,
+    color: "text-sky-400",
+  },
+];
 
-  const [filters, setFilters] = useState<FilterState>({
-    task: [],
-    domains: [],
-    scalers: [],
-    models: [],
-    minRows: 0,
-    maxRows: 50000,
-    fastBaselinesOnly: false,
-  });
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+const TECH_STACK = [
+  { name: "Next.js 14", role: "App Router & SSR", badge: "Frontend" },
+  { name: "TypeScript", role: "Type-Safe Client", badge: "Language" },
+  { name: "Tailwind CSS", role: "Modern Design Tokens", badge: "Styling" },
+  { name: "FastAPI", role: "Python Microservice", badge: "Backend" },
+  { name: "Scikit-Learn", role: "ML Pipelines & Estimators", badge: "Engine" },
+  { name: "Pandas & NumPy", role: "Vectorized Computations", badge: "Data" },
+  { name: "SciPy", role: "Statistical Tests & PSI", badge: "Math" },
+  { name: "Recharts", role: "Interactive Visualizations", badge: "Charts" },
+];
+
+export default function HomePage() {
+  const [selectedDatasetId, setSelectedDatasetId] = useState("iris");
+  const [loadedDataset, setLoadedDataset] = useState<DatasetPreviewResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadSuccess, setLoadSuccess] = useState(false);
 
   const currentPreset = PRESET_DATASETS.find((d) => d.id === selectedDatasetId) || PRESET_DATASETS[0];
 
@@ -98,7 +157,7 @@ export default function LandingPage() {
     setLoading(true);
     setLoadSuccess(false);
     try {
-      const data = await api.loadCuratedDataset(datasetId, "default");
+      const data = await api.loadCuratedDataset(datasetId);
       setLoadedDataset(data);
       setLoadSuccess(true);
     } catch (e) {
@@ -109,8 +168,8 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#09090B] text-zinc-100 overflow-hidden bg-grid-pattern selection:bg-blue-600 selection:text-white">
-      {/* Background Radial Glows */}
+    <div className="relative min-h-screen bg-[#09090B] text-zinc-100 overflow-hidden selection:bg-blue-600 selection:text-white">
+      {/* Background Radial Glow */}
       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-full max-w-7xl h-[500px] overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-100px] left-1/2 transform -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-tr from-blue-600/15 via-indigo-600/10 to-violet-600/10 blur-[120px] rounded-full" />
       </div>
@@ -122,7 +181,7 @@ export default function LandingPage() {
           <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
           <span className="font-medium text-zinc-200">OpenDataLens Platform</span>
           <span className="text-zinc-600">•</span>
-          <span className="text-blue-400 font-medium">Leak-Free Automated ML</span>
+          <span className="text-blue-400 font-medium">Leak-Free Automated Machine Learning</span>
         </div>
 
         {/* Hero Title */}
@@ -138,229 +197,193 @@ export default function LandingPage() {
           </p>
         </div>
 
-        {/* Primary CTA Buttons */}
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+        {/* Hero CTAs */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <Link
-            href="/explorer"
-            className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/25 transition-all duration-150 active:scale-95"
+            href="/dashboard"
+            className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-md shadow-blue-600/30 transition-all duration-150 active:scale-95"
           >
-            <span>Explore Datasets</span>
+            <span>Open Workspace</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
-            href="/studio"
-            className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-800 font-semibold text-sm transition-all duration-150"
+            href="/explorer"
+            className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-6 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-200 font-semibold text-sm transition-all duration-150 active:scale-95"
           >
-            <Sparkles className="w-4 h-4 text-blue-400" />
-            <span>Launch ML Studio</span>
+            <Database className="w-4 h-4 text-zinc-400" />
+            <span>Browse Datasets</span>
           </Link>
           <a
             href="https://github.com/deepakpradhan1021/OpenDataLens"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center space-x-2 px-4 py-3 rounded-xl bg-transparent hover:bg-zinc-800/40 text-zinc-400 hover:text-white border border-transparent hover:border-zinc-800 text-sm transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-3 rounded-xl bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-sm font-semibold transition-colors"
           >
-            <Github className="w-4 h-4" />
-            <span>Star on GitHub</span>
+            <GitBranch className="w-4 h-4 text-zinc-400" />
+            <span>GitHub Repository</span>
           </a>
         </div>
+      </section>
 
-        {/* Interactive In-Memory Dataset Mounting Terminal */}
-        <div className="pt-8 max-w-4xl mx-auto text-left">
-          <div className="rounded-2xl border border-zinc-800/90 bg-[#101014] shadow-2xl overflow-hidden">
-            {/* Terminal Window Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-zinc-950/60 text-xs font-mono">
-              <div className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block" />
-                <span className="w-3 h-3 rounded-full bg-yellow-500/80 inline-block" />
-                <span className="w-3 h-3 rounded-full bg-green-500/80 inline-block" />
-                <span className="text-zinc-500 ml-2">opendatalens-live-workspace</span>
+      {/* INTERACTIVE TRY DEMO SANDBOX */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="rounded-3xl border border-zinc-800 bg-[#101014] p-6 sm:p-8 shadow-xl space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800/80 pb-6">
+            <div>
+              <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 mb-2">
+                <Play className="w-3 h-3" />
+                <span>Try Demo Sandbox</span>
               </div>
-              <div className="flex items-center space-x-3 text-zinc-400">
-                <span className="flex items-center space-x-1 text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  <span>FastAPI Connected</span>
-                </span>
-              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">
+                Instant Interactive Dataset Mounting
+              </h2>
+              <p className="text-xs sm:text-sm text-zinc-400 mt-1">
+                Load a curated benchmark dataset into your browser workspace in one click.
+              </p>
             </div>
 
-            {/* Dataset Quick Tabs */}
-            <div className="p-4 sm:p-6 space-y-6">
-              <div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2.5">
-                  Select Benchmark to Mount Into Active Memory:
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_DATASETS.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => handleQuickLoad(d.id)}
-                      className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                        selectedDatasetId === d.id
-                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 border border-blue-500 font-semibold"
-                          : "bg-zinc-900 text-zinc-300 hover:bg-zinc-800 border border-zinc-800"
-                      }`}
-                    >
-                      <span>{d.name}</span>
-                    </button>
-                  ))}
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_DATASETS.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => handleQuickLoad(d.id)}
+                  disabled={loading}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    selectedDatasetId === d.id
+                      ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                      : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700"
+                  }`}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Preset Details Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 space-y-1">
+              <div className="text-xs text-zinc-500 font-mono uppercase">Dataset Profile</div>
+              <div className="text-lg font-bold text-white">{currentPreset.name}</div>
+              <div className="text-xs text-zinc-400">{currentPreset.desc}</div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 space-y-1">
+              <div className="text-xs text-zinc-500 font-mono uppercase">Dimensions</div>
+              <div className="text-lg font-bold text-white font-mono">
+                {currentPreset.rows.toLocaleString()} rows × {currentPreset.cols} cols
               </div>
+              <div className="text-xs text-zinc-400">Task: {currentPreset.task}</div>
+            </div>
 
-              {/* Mounted Dataset Inspector Card */}
-              <div className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-semibold text-sm text-white">{currentPreset.name}</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                      {currentPreset.task}
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
-                      {currentPreset.tag}
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-400">{currentPreset.desc}</p>
-                  <div className="text-[11px] font-mono text-zinc-500 pt-1">
-                    Dimensions: {currentPreset.rows.toLocaleString()} rows × {currentPreset.cols} columns
-                  </div>
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 flex flex-col justify-between">
+              <div className="text-xs text-zinc-500 font-mono uppercase">Workspace Status</div>
+              {loadSuccess ? (
+                <div className="flex items-center space-x-2 text-emerald-400 text-xs font-semibold">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Mounted into session memory</span>
                 </div>
-
-                <div className="flex items-center space-x-2 shrink-0">
-                  <button
-                    onClick={() => handleQuickLoad(selectedDatasetId)}
-                    disabled={loading}
-                    className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold border border-zinc-700 transition-colors flex items-center space-x-1.5"
-                  >
-                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" /> : <Play className="w-3.5 h-3.5 fill-white" />}
-                    <span>{loadSuccess ? "Remount" : "Mount Dataset"}</span>
-                  </button>
-                  <Link
-                    href="/studio"
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center space-x-1.5"
-                  >
-                    <span>Train ML</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
-
-              {loadSuccess && loadedDataset && (
-                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono flex items-center justify-between animate-in fade-in duration-200">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Mounted `{loadedDataset.metadata?.name}` into active memory session.</span>
-                  </div>
-                  <Link href="/quality" className="text-white hover:underline text-xs font-medium">
-                    View Quality Audit →
-                  </Link>
-                </div>
+              ) : (
+                <div className="text-xs text-zinc-500">Ready to mount</div>
               )}
+              <Link
+                href="/quality"
+                className="inline-flex items-center space-x-1.5 text-xs font-semibold text-blue-400 hover:text-blue-300 mt-2"
+              >
+                <span>Run Quality Audit</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Bento Grid Feature Showcase */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-zinc-800/80">
-        <div className="text-center max-w-2xl mx-auto mb-14 space-y-3">
-          <h2 className="text-3xl font-bold tracking-tight text-white">
-            Engineered for Modern ML Workflows
+      {/* 7-STEP REPRODUCIBLE ML WORKFLOW */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-12">
+        <div className="text-center space-y-3 max-w-3xl mx-auto">
+          <div className="text-xs font-mono font-semibold uppercase text-blue-400 tracking-wider">
+            Architecture &amp; Lifecycle
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            End-to-End Machine Learning Workflow
           </h2>
           <p className="text-sm text-zinc-400">
-            A cohesive suite of four core engines replacing ad-hoc scripts with end-to-end reproducibility.
+            A standardized, disciplined lifecycle from ingestion to drift monitoring with strict zero data leakage.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Card 1: Explorer */}
-          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-colors group">
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Database className="w-5 h-5" />
-              </div>
-              <h3 className="font-semibold text-base text-white">1. Dataset Explorer</h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                Connect directly to Hugging Face Hub, load curated classification &amp; regression benchmarks, or upload local CSVs with auto-delimiter sniffing.
-              </p>
-            </div>
-            <Link
-              href="/explorer"
-              className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center space-x-1 pt-2"
-            >
-              <span>Explore Datasets</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {/* Card 2: Quality */}
-          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-colors group">
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <h3 className="font-semibold text-base text-white">2. Quality Profiler</h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                Calculate completeness scores, detect duplicate rows, visualize missingness ratios, compute Pearson correlation heatmaps, and surface diagnostic warnings.
-              </p>
-            </div>
-            <Link
-              href="/quality"
-              className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center space-x-1 pt-2"
-            >
-              <span>Audit Quality</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {/* Card 3: Studio */}
-          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-colors group">
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <h3 className="font-semibold text-base text-white">3. ML Studio</h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                Configure classification or regression pipelines, choose feature subsets and scalers, and train multiple Scikit-learn models on asynchronous background workers.
-              </p>
-            </div>
-            <Link
-              href="/studio"
-              className="text-xs font-semibold text-violet-400 hover:text-violet-300 flex items-center space-x-1 pt-2"
-            >
-              <span>Launch Studio</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {/* Card 4: Comparison */}
-          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-colors group">
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <BarChart3 className="w-5 h-5" />
-              </div>
-              <h3 className="font-semibold text-base text-white">4. Model Showdown</h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                Compare models across Accuracy, F1, RMSE, and R², inspect confusion matrix heatmaps, and export production-ready `.joblib` model pipelines.
-              </p>
-            </div>
-            <Link
-              href="/comparison"
-              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 pt-2"
-            >
-              <span>Compare Models</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {WORKFLOW_STEPS.map((step) => {
+            const Icon = step.icon;
+            return (
+              <Link
+                key={step.step}
+                href={step.href}
+                className="group p-5 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 hover:bg-zinc-900/70 hover:border-zinc-700 transition-all space-y-3 flex flex-col justify-between"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-zinc-500 group-hover:text-zinc-300">
+                      {step.step}
+                    </span>
+                    <Icon className={`w-5 h-5 ${step.color}`} />
+                  </div>
+                  <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors">
+                    {step.title}
+                  </h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    {step.desc}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-1.5 text-xs text-blue-400 font-semibold pt-2">
+                  <span>Explore Stage</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
-      {/* Floating Command Dock */}
-      <RetroDock
-        filters={filters}
-        onFilterChange={setFilters}
-        viewMode={viewMode}
-        onToggleView={() => setViewMode((v) => (v === "grid" ? "list" : "grid"))}
-      />
+      {/* TECHNOLOGY STACK */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-zinc-800/80 space-y-8">
+        <div className="text-center space-y-2">
+          <h3 className="text-xl font-bold text-white">Engineered with Production-Grade Tools</h3>
+          <p className="text-xs text-zinc-400">Full-stack modular architecture powered by modern web and data engineering primitives</p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {TECH_STACK.map((tech) => (
+            <div key={tech.name} className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/40 space-y-1 text-left">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-zinc-200">{tech.name}</span>
+                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                  {tech.badge}
+                </span>
+              </div>
+              <div className="text-[11px] text-zinc-500">{tech.role}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-800/80 py-8 px-4 text-center text-xs text-zinc-500 space-y-2">
+        <div className="flex items-center justify-center space-x-4">
+          <Link href="/dashboard" className="hover:text-zinc-300">Dashboard</Link>
+          <span>•</span>
+          <Link href="/explorer" className="hover:text-zinc-300">Explorer</Link>
+          <span>•</span>
+          <Link href="/quality" className="hover:text-zinc-300">Quality</Link>
+          <span>•</span>
+          <Link href="/studio" className="hover:text-zinc-300">ML Studio</Link>
+          <span>•</span>
+          <Link href="/drift" className="hover:text-zinc-300">Data Drift</Link>
+          <span>•</span>
+          <Link href="/reports" className="hover:text-zinc-300">Reports</Link>
+        </div>
+        <div>OpenDataLens Platform • Open-Source Machine Learning Workspace under MIT License</div>
+      </footer>
     </div>
   );
 }

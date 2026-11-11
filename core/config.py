@@ -55,14 +55,14 @@ CURATED_DATASETS = [
         "source": "scikit-learn"
     },
     {
-        "id": "wine_quality",
-        "name": "Wine Quality (Red)",
-        "description": "Physicochemical tests of red wine variants with target quality score rating between 0 and 10.",
+        "id": "wine_recognition",
+        "name": "Wine Recognition Benchmark",
+        "description": "178 wine samples across 3 cultivars with 13 continuous chemical measurements including alcohol, malic acid, and flavanoids.",
         "task": "classification",
-        "rows": 1599,
-        "cols": 12,
-        "target": "quality",
-        "source": "scikit-learn"
+        "rows": 178,
+        "cols": 14,
+        "target": "target",
+        "source": "scikit-learn (UCI Machine Learning Repository)"
     },
     {
         "id": "california_housing",
@@ -95,14 +95,14 @@ CURATED_DATASETS = [
         "source": "scikit-learn"
     },
     {
-        "id": "titanic_sample",
-        "name": "Titanic Passenger Survival",
-        "description": "Passenger demographics and survival status featuring mixed data types, missing values, and categorical features.",
+        "id": "titanic_synthetic",
+        "name": "Titanic Survival (Synthetic Demo Benchmark)",
+        "description": "Synthetic benchmark dataset modeled after Titanic passenger demographics for testing missing value imputation and mixed data types. (Generated demo data, not original historical records).",
         "task": "classification",
         "rows": 891,
-        "cols": 12,
+        "cols": 9,
         "target": "Survived",
-        "source": "embedded"
+        "source": "Synthetic Benchmark"
     }
 ]
 
