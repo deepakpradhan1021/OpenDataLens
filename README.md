@@ -1,38 +1,42 @@
 # OpenDataLens — AI-Powered Dataset Explorer & Model Evaluation Platform
 
-[![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20App-black?style=flat&logo=vercel)](https://opendatalens-app.vercel.app)
-[![Next.js 14](https://img.shields.io/badge/Next.js-14%20App%20Router-black?style=flat&logo=next.js)](https://nextjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-1.5+-F7931E?style=flat&logo=scikit-learn)](https://scikit-learn.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS%203.4-38B2AC?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
-[![Pytest](https://img.shields.io/badge/Pytest-67%20Passed-10B981?style=flat)](tests/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<div align="center">
 
-**OpenDataLens** is a modern, developer-first machine learning workbench and automated model evaluation platform. Built as a full-stack SaaS application, OpenDataLens streamlines the end-to-end data science lifecycle: from discovering and streaming public datasets on Hugging Face, to comprehensive statistical data quality profiling, leak-free Scikit-learn pipeline training, cross-model benchmarking tournaments, Explainable AI (Permutation Importance), Data Drift monitoring (PSI & KS tests), and one-click production artifact exports.
+[![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20App-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://opendatalens-app.vercel.app)
+[![Render Backend](https://img.shields.io/badge/Render-Live%20API-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://opendatalens.onrender.com/docs)
+[![CI Pipeline](https://img.shields.io/github/actions/workflow/status/deepakpradhan1021/OpenDataLens/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI%20Pipeline)](https://github.com/deepakpradhan1021/OpenDataLens/actions/workflows/ci.yml)
+[![Pytest Suite](https://img.shields.io/badge/Pytest-67%20Passed%20(100%25)-10B981?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
-Designed with a sleek, dark-mode SaaS interface inspired by platforms like Linear, Vercel, Supabase, and Hugging Face, OpenDataLens emphasizes high information density, subtle borders, glowing data accents, and zero data leakage.
+**A production-ready, developer-first machine learning workbench and automated model evaluation platform.**  
+*Discover, profile, evaluate, explain, and benchmark machine learning models with zero data leakage.*
+
+[**Live Web Application**](https://opendatalens-app.vercel.app) • [**Interactive Swagger Docs**](https://opendatalens.onrender.com/docs) • [**System Health**](https://opendatalens.onrender.com/api/health) • [**Report a Bug**](https://github.com/deepakpradhan1021/OpenDataLens/issues)
+
+</div>
 
 ---
 
-## Live Production Deployment
+## Highlights & Features
+
+| Capability | Technical Implementation | Highlights |
+| :--- | :--- | :--- |
+| **Workspace Session Isolation** | Cryptographic UUIDv4 tokens via `SessionStore` & TTL eviction | Multi-tenant isolation; zero cross-user pollution; 1-click workspace clearing |
+| **Explainable AI (XAI)** | `sklearn.inspection.permutation_importance` on held-out test split | Permutation Feature Importance, native model weights, single-sample prediction attribution |
+| **Data Drift Detection** | Two-sample Kolmogorov-Smirnov (`scipy.stats.ks_2samp`) & PSI | Population Stability Index (PSI), distribution shift charts, categorical Total Variation Distance (TVD) |
+| **Leak-Free ML Studio** | Stratified K-Fold / K-Fold (3, 5, 10 folds) with `ColumnTransformer` | Zero data leakage: standard/robust/minmax scalers fitted exclusively on training folds |
+| **Quality Intelligence** | Interquartile Range (IQR) & 3-sigma z-score outlier detection | Target leakage flags (\|r\| ≥ 0.95), high-cardinality warnings, completeness scoring |
+| **AI Dataset Copilot** | Deterministic heuristic reasoning engine | Grounded answers on quality, missing values, and model champions with 0 latency & 0 API cost |
+| **Artifact Export Bay** | Scikit-Learn `.joblib` serialization, HTML dossiers, JSON reports | Production-ready downloadable model artifacts and standalone shareable audit dossiers |
+
+---
+
+## Live Deployments
 
 - **Production Frontend (Vercel)**: [https://opendatalens-app.vercel.app](https://opendatalens-app.vercel.app)
-- **GitHub Repository**: [https://github.com/deepakpradhan1021/OpenDataLens](https://github.com/deepakpradhan1021/OpenDataLens)
-
----
-
-## Key Capabilities
-
-- **Remote Dataset Discovery & Ingestion**: Stream datasets directly from the Hugging Face Hub using the Datasets API, load instant curated benchmarks (Iris, California Housing, Wine Recognition, Wisconsin Breast Cancer, Diabetes, Titanic Synthetic Demo), or drag-and-drop local CSV files (up to 25 MB) with automatic delimiter sniffing (commas, tabs, semicolons, pipes).
-- **Cryptographic Workspace Session Isolation**: Every browser session automatically initializes a unique, unguessable UUIDv4 workspace. Datasets, evaluations, experiments, and background training jobs are isolated in memory with configurable session TTL and 1-click workspace clearing.
-- **Automated Data Quality Profiling & Anomaly Detection**: Instant dataset health auditing: compute completeness scores, detect duplicate rows, visualize missingness ratios with bar charts, compute numeric Pearson correlation heatmaps, analyze distribution moments (skewness, variance, unique counts), identify numerical outliers via Interquartile Range (IQR), flag high-cardinality categoricals, and detect potential target leakage (|r| >= 0.95).
-- **Leak-Free ML Training Studio with K-Fold Cross Validation**: Automated task and target heuristics (identifying suitable classification or regression targets via entropy and cardinality checks). Configurable feature subsets, train/test split ratio, 5-Fold Stratified K-Fold / K-Fold cross validation, random seeds, and preprocessing scalers (`StandardScaler`, `RobustScaler`, `MinMaxScaler`). All transformations fit strictly on the training partition to guarantee mathematical zero data leakage.
-- **Explainable AI (XAI)**: Understand model predictions via Permutation Feature Importance computed on held-out test splits, eliminating collinearity distortion. Inspect native model weights (tree feature importances, linear coefficients) and local individual prediction feature attributions.
-- **Data Drift Detection & Monitoring**: Dedicated drift monitoring page comparing baseline reference datasets to evaluation partitions or uploaded target CSVs. Calculates Population Stability Index (PSI) and two-sample Kolmogorov-Smirnov (KS) statistics for continuous features, and Total Variation Distance (TVD) for categoricals.
-- **Reproducible Experiment History Tracking**: Immutable session run logs storing dataset fingerprints, target columns, feature subsets, model architectures, hyperparameters, CV fold mean ± standard deviation scores, and JSON export.
-- **AI Dataset Copilot**: Zero-cost deterministic heuristic intelligence engine answering questions about dataset composition, missing value cleaning priorities, outlier mitigations, and model performance comparisons without external API dependencies.
-- **Production Artifact & Dossier Export**: Download serialized `.joblib` model binaries ready for production deployment, standalone interactive HTML dossiers with embedded styles and charts, machine-readable JSON evaluation summaries, and formatted GitHub README markdown snippets.
+- **Production Backend (Render)**: [https://opendatalens.onrender.com](https://opendatalens.onrender.com)
+- **Interactive API Documentation (Swagger)**: [https://opendatalens.onrender.com/docs](https://opendatalens.onrender.com/docs)
+- **Live Telemetry & Health**: [https://opendatalens.onrender.com/api/health](https://opendatalens.onrender.com/api/health)
 
 ---
 
@@ -40,7 +44,7 @@ Designed with a sleek, dark-mode SaaS interface inspired by platforms like Linea
 
 ```mermaid
 flowchart TD
-    subgraph Frontend["Frontend — Next.js 14 App Router (Port 3000)"]
+    subgraph Frontend["Frontend — Next.js 14 App Router (Vercel)"]
         LANDING["Landing Page (Hero & Demo Sandbox)"]
         DASH["Telemetry Dashboard"]
         EXP["Dataset Explorer & Hub Search"]
@@ -51,7 +55,7 @@ flowchart TD
         REP["Export Bay (.joblib / HTML / JSON)"]
     end
 
-    subgraph Backend["Backend — Python FastAPI Microservice (Port 8000)"]
+    subgraph Backend["Backend — Python FastAPI Microservice (Render)"]
         ROUTER["FastAPI REST API (/api)"]
         SESSION["Session State Store (UUID Isolation & TTL)"]
         HF_CLIENT["Hugging Face Hub Client"]
@@ -63,7 +67,7 @@ flowchart TD
         EXPORTER["Artifact Serializer (Joblib & Reports)"]
     end
 
-    Frontend -->|HTTP / JSON REST API| ROUTER
+    Frontend -->|HTTP / JSON REST API with X-Session-ID| ROUTER
     ROUTER --> SESSION
     ROUTER --> HF_CLIENT
     ROUTER --> PREPROC
@@ -76,11 +80,28 @@ flowchart TD
 
 ---
 
+## Authoritative Curated Benchmark Catalog
+
+OpenDataLens includes an authoritative catalog of benchmark datasets pre-loaded and ready for immediate experimentation:
+
+| Dataset ID | Benchmark Name | Samples | Features | Target Column | Task Type | Source Attribution |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `iris` | Iris Flower Classification | 150 | 4 | `target` | Multiclass | Scikit-Learn |
+| `wine_recognition` | Wine Recognition Benchmark | 178 | 13 | `target` | Multiclass | Scikit-Learn (UCI ML Repository) |
+| `california_housing` | California Housing Prices | 20,640 | 8 | `MedHouseVal` | Regression | Scikit-Learn (1990 U.S. Census) |
+| `breast_cancer` | Wisconsin Breast Cancer Diagnostic | 569 | 30 | `target` | Binary | Scikit-Learn (WDBC) |
+| `diabetes` | Diabetes Disease Progression | 442 | 10 | `target` | Regression | Scikit-Learn |
+| `titanic_synthetic` | Titanic Survivorship Benchmark | 891 | 8 | `Survived` | Binary | Synthetic Demo Benchmark |
+
+*Note: Legacy identifiers (`wine_quality`, `titanic`, `titanic_sample`) automatically resolve to their canonical counterparts with 100% backward compatibility.*
+
+---
+
 ## Project Structure
 
 ```text
 OpenDataLens/
-├── backend/                        # FastAPI Python Microservice
+├── backend/                        # Python FastAPI Microservice
 │   ├── api/
 │   │   ├── main.py                 # FastAPI entrypoint, CORS & error handling
 │   │   ├── models.py               # Pydantic schemas & response models
@@ -95,7 +116,8 @@ OpenDataLens/
 │   │       ├── quality.py          # Quality profiling & IQR outliers
 │   │       └── reports.py          # Downloadable HTML, JSON, and .joblib exports
 │   ├── requirements.txt            # Python dependencies (scikit-learn, scipy, etc.)
-│   └── run_server.py               # Local server runner
+│   ├── render.yaml                 # Render Infrastructure-as-Code deployment blueprint
+│   └── run_server.py               # Local Uvicorn server launcher
 ├── core/                           # Core Machine Learning & Data Engine
 │   ├── config.py                   # Authoritative benchmark catalog & tokens
 │   ├── copilot.py                  # Deterministic AI reasoning engine
@@ -105,7 +127,7 @@ OpenDataLens/
 │   ├── ml_studio.py                # Pipeline construction, K-Fold CV, & fitting
 │   ├── quality_analyzer.py         # Quality profiling, IQR outliers, & leakage
 │   ├── report_generator.py         # Multi-format report builder
-│   └── visualizer.py               # Visualizations & distribution plotting
+│   └── visualizer.py               # Distribution and matrix plotting
 ├── frontend/                       # Modern Next.js 14 SaaS Web Application
 │   ├── src/
 │   │   ├── app/                    # Next.js App Router pages
@@ -121,47 +143,28 @@ OpenDataLens/
 │   │   └── lib/                    # API client, workspace UUID, TypeScript types
 │   ├── tests/                      # Playwright end-to-end test suite
 │   ├── package.json                # Frontend dependencies
-│   ├── tailwind.config.ts          # Modern dark-mode theme configuration
-│   └── playwright.config.ts        # E2E test runner configuration
+│   └── tailwind.config.ts          # Modern dark-mode theme configuration
 ├── tests/                          # Backend Pytest test suite (67 tests)
 └── .github/
-    └── workflows/
-        └── ci.yml                  # Automated GitHub Actions CI pipeline
+    ├── workflows/
+    │   └── ci.yml                  # Automated GitHub Actions CI pipeline
+    ├── ISSUE_TEMPLATE/             # GitHub Issue templates
+    └── PULL_REQUEST_TEMPLATE.md    # Standardized PR template
 ```
 
 ---
 
-## Authoritative Curated Benchmark Catalog
-
-OpenDataLens maintains an authoritative offline-ready dataset catalog:
-
-| Dataset ID | Name | Rows | Features | Target | Task | Source |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `iris` | Iris Flower Dataset | 150 | 4 | `target` | Classification | scikit-learn |
-| `wine_recognition` | Wine Recognition Benchmark | 178 | 13 | `target` | Classification | scikit-learn (UCI Repository) |
-| `california_housing` | California Housing Prices | 20,640 | 8 | `MedHouseVal` | Regression | scikit-learn |
-| `breast_cancer` | Breast Cancer Wisconsin | 569 | 30 | `target` | Classification | scikit-learn |
-| `diabetes` | Diabetes Progression | 442 | 10 | `target` | Regression | scikit-learn |
-| `titanic_synthetic` | Titanic Survival (Synthetic Demo) | 891 | 8 | `Survived` | Classification | Synthetic Benchmark Demo |
-
-*Note on Backward Compatibility: Legacy IDs `wine_quality`, `titanic`, and `titanic_sample` automatically resolve to their canonical benchmarks.*
-
----
-
-## Getting Started
+## Local Development Quickstart
 
 ### Prerequisites
-
 - **Python**: 3.10, 3.11, 3.12, or 3.13
 - **Node.js**: 18.x, 20.x, or 22.x
 - **Git**
 
----
-
-### 1. Backend Setup (FastAPI)
-
+### 1. Launch the Backend (FastAPI)
 ```bash
-# Navigate to project root
+# Clone the repository
+git clone https://github.com/deepakpradhan1021/OpenDataLens.git
 cd OpenDataLens
 
 # Create and activate Python virtual environment
@@ -172,23 +175,18 @@ python -m venv .venv
 # On macOS / Linux:
 source .venv/bin/activate
 
-# Install dependencies
+# Install backend dependencies
 pip install -r backend/requirements.txt
 pip install pytest pytest-asyncio httpx
 
-# Launch FastAPI server
+# Start the FastAPI server
 python backend/run_server.py
 ```
+*Backend runs on `http://localhost:8000`. Swagger documentation available at `http://localhost:8000/docs`.*
 
-The FastAPI backend microservice will start at `http://localhost:8000`.
-Interactive Swagger documentation is available at `http://localhost:8000/docs`.
-
----
-
-### 2. Frontend Setup (Next.js 14)
-
+### 2. Launch the Frontend (Next.js 14)
 ```bash
-# In a new terminal, navigate to the frontend directory
+# In a new terminal window
 cd OpenDataLens/frontend
 
 # Install dependencies
@@ -196,74 +194,85 @@ npm install
 
 # Start development server
 npm run dev
-
-# Or build and run production server
-npm run build
-npm start
 ```
-
-Open `http://localhost:3000` in your browser.
+*Frontend runs on `http://localhost:3000` and automatically connects to `http://localhost:8000/api`.*
 
 ---
 
-## Verification & Automated Testing
+## Verification & Testing
 
-OpenDataLens includes complete test suites covering both the Python ML backend and the Next.js frontend.
+OpenDataLens maintains full automated test coverage across all layers:
 
-### 1. Backend Unit & Integration Tests (Pytest)
-
-Run all 67 backend tests covering session isolation, dataset ingestion, data drift detection (PSI/KS), permutation explainability, Stratified K-Fold cross validation, IQR outliers, and FastAPI endpoints:
-
+### 1. Backend Test Suite (Pytest)
 ```bash
-pytest -v
+python -m pytest -v
 ```
-
 ```text
-============================= 67 passed in 6.45s ==============================
+============================= 67 passed in 8.33s ==============================
 ```
+Covers:
+- `test_session_isolation.py`: UUID session validation, TTL eviction, cross-tenant isolation.
+- `test_cross_validation.py`: Stratified K-Fold & K-Fold leak-free preprocessing.
+- `test_drift_detector.py`: PSI calculation, Kolmogorov-Smirnov 2-sample tests, categorical TVD.
+- `test_explainability.py`: Permutation Feature Importance & baseline prediction attributions.
+- `test_quality_intelligence.py`: IQR outliers, high cardinality, and target leakage ($|r| \ge 0.95$).
+- `test_copilot.py`: Deterministic dataset and model reasoning queries.
+- `test_fastapi_endpoints.py`: All REST API routes, status codes, and payload validation.
 
-### 2. End-to-End Automated Browser Tests (Playwright)
-
-Run Playwright tests across both desktop and mobile viewports:
-
+### 2. Frontend Production Build & Typecheck
 ```bash
 cd frontend
-npm run test:e2e
+npm run build
+```
+```text
+Route (app)                              Size     First Load JS
+┌ ○ /                                    6.63 kB         124 kB
+├ ○ /comparison                          11.1 kB         230 kB
+├ ○ /dashboard                           3.71 kB         126 kB
+├ ○ /drift                               4.83 kB         123 kB
+├ ○ /explorer                            4.44 kB         127 kB
+├ ○ /quality                             6.24 kB         226 kB
+├ ○ /reports                             2.6 kB          125 kB
+└ ○ /studio                              4.84 kB         127 kB
++ First Load JS shared by all            87.5 kB
+Exit code: 0
 ```
 
 ---
 
-## Production Deployment
+## Production Deployment Guide
 
-### Frontend (Vercel)
-The Next.js 14 frontend is preconfigured for instant deployment on Vercel:
-1. Connect this GitHub repository to Vercel.
-2. Set the Root Directory to `frontend`.
-3. Configure the environment variable:
-   `NEXT_PUBLIC_API_URL=https://<your-render-backend-url>/api`
-4. Deploy!
+### Deploying the Backend on Render
+1. Create a new **Web Service** on [Render.com](https://render.com) and link this repository.
+2. Configure settings:
+   - **Root Directory:** *(leave blank / empty)*
+   - **Build Command:** `pip install -r backend/requirements.txt`
+   - **Start Command:** `uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT`
+3. Your live API will be available at `https://<your-service>.onrender.com`.
 
-### Backend (Render)
-A `backend/render.yaml` blueprint is included:
-```yaml
-services:
-  - type: web
-    name: opendatalens-api
-    env: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT
-```
+### Deploying the Frontend on Vercel
+1. Import this repository on [Vercel.com](https://vercel.com).
+2. Set **Root Directory** to `frontend`.
+3. In **Settings → Environment Variables**, add:
+   - **Key:** `NEXT_PUBLIC_API_URL`
+   - **Value:** `https://<your-service>.onrender.com/api`
+4. Click **Deploy**. The frontend will automatically connect to your live Render backend.
 
 ---
 
-## Known Limitations & Roadmap
+## Contributing
 
-- **In-Memory Session Store**: Workspace state is stored in server memory with TTL expiration. For multi-replica distributed horizontal scaling, Redis can be introduced as the backing session store.
-- **Single-Machine Training**: Estimators execute on local CPU threads via Scikit-learn. Distributed cluster training (e.g. Ray / Spark) is planned for future releases.
-- **Multimodal Datasets**: Current release specializes in tabular and structured benchmark datasets. Image and audio dataset exploration is on the roadmap.
+Contributions, issues, and feature requests are welcome!  
+Feel free to check out the [issues page](https://github.com/deepakpradhan1021/OpenDataLens/issues).
+
+1. Fork the Project.
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`).
+3. Commit your Changes (`git commit -m 'feat: Add some AmazingFeature'`).
+4. Push to the Branch (`git push origin feature/AmazingFeature`).
+5. Open a Pull Request using our [PR Template](.github/PULL_REQUEST_TEMPLATE.md).
 
 ---
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
