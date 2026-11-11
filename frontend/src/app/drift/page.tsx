@@ -19,7 +19,7 @@ import {
   HelpCircle,
   ShieldAlert,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, categorizeApiError } from "@/lib/api";
 import { DriftAnalysisResponse } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 
@@ -37,10 +37,14 @@ export default function DriftPage() {
       const data = await api.getDriftAnalysis(ratio);
       setDriftReport(data);
     } catch (err: any) {
-      setError(
-        err.response?.data?.detail ||
-        "No active dataset found or dataset has insufficient samples. Please load a dataset first."
-      );
+      const cat = categorizeApiError(err);
+      if (cat.type === "cold_start") {
+        setError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Please click Analyze Drift again shortly.");
+      } else if (cat.type === "timeout") {
+        setError("Drift computation timed out after 75s. Click Analyze Drift to retry.");
+      } else {
+        setError(cat.message || "No active dataset found or dataset has insufficient samples. Please load a dataset first.");
+      }
       setDriftReport(null);
     } finally {
       setLoading(false);
@@ -53,14 +57,19 @@ export default function DriftPage() {
 
   const handleTargetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || uploading) return;
     setUploading(true);
     setError(null);
     try {
       const data = await api.compareTargetCSVDrift(file);
       setDriftReport(data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to compare uploaded target dataset.");
+      const cat = categorizeApiError(err);
+      if (cat.type === "cold_start") {
+        setError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Please upload your target CSV again once awake.");
+      } else {
+        setError(cat.message || "Failed to compare uploaded target dataset.");
+      }
     } finally {
       setUploading(false);
       e.target.value = "";

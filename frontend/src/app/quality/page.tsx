@@ -31,7 +31,7 @@ import {
   CartesianGrid,
   Cell,
 } from "recharts";
-import { api } from "@/lib/api";
+import { api, categorizeApiError } from "@/lib/api";
 import { QualityAnalysisResponse, CopilotResponse, ColumnDistributionResponse } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 
@@ -62,7 +62,14 @@ export default function QualityPage() {
       }
     } catch (e: any) {
       console.error(e);
-      setQualityError(e.response?.data?.detail || "Failed to load quality analysis. Ensure a dataset is active in your workspace.");
+      const cat = categorizeApiError(e);
+      if (cat.type === "cold_start") {
+        setQualityError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Click retry once awake.");
+      } else if (cat.type === "timeout") {
+        setQualityError("Quality audit request timed out after 75s. Click retry to query again.");
+      } else {
+        setQualityError(cat.message || "Failed to load quality analysis. Ensure a dataset is active in your workspace.");
+      }
     } finally {
       setLoading(false);
     }
@@ -83,7 +90,8 @@ export default function QualityPage() {
       })
       .catch((err: any) => {
         console.error(err);
-        setDistError(err.response?.data?.detail || "Failed to calculate distribution histogram.");
+        const cat = categorizeApiError(err);
+        setDistError(cat.message || "Failed to calculate distribution histogram.");
         setDistData(null);
       })
       .finally(() => setDistLoading(false));

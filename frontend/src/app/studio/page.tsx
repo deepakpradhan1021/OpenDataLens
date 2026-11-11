@@ -18,7 +18,7 @@ import {
   Terminal,
   Sparkles,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, categorizeApiError } from "@/lib/api";
 import { TargetCandidatesResponse, JobStatusResponse } from "@/lib/types";
 import { EmptyState } from "@/components/empty-state";
 import { RetroDock } from "@/components/retro-dock";
@@ -158,9 +158,11 @@ export default function StudioPage() {
 
       setJobId(resp.job_id);
 
+      let consecutivePollErrors = 0;
       const interval = setInterval(async () => {
         try {
           const status = await api.getJobStatus(resp.job_id);
+          consecutivePollErrors = 0;
           setJobStatus(status);
 
           if (status.status === "completed") {
@@ -174,15 +176,26 @@ export default function StudioPage() {
             setIsTraining(false);
             setError(status.error || "Training job encountered an engine error.");
           }
-        } catch (pollErr: any) {
-          clearInterval(interval);
-          setIsTraining(false);
-          setError("Failed to query background worker status.");
+        } catch {
+          consecutivePollErrors++;
+          // Allow transient Render network/compute hiccups before failing
+          if (consecutivePollErrors >= 5) {
+            clearInterval(interval);
+            setIsTraining(false);
+            setError("Lost connection to background training worker. Please check the Leaderboard or retry.");
+          }
         }
-      }, 750);
+      }, 1000);
     } catch (trainErr: any) {
       setIsTraining(false);
-      setError(trainErr?.response?.data?.detail || trainErr.message || "Failed to dispatch training job.");
+      const cat = categorizeApiError(trainErr);
+      if (cat.type === "cold_start") {
+        setError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Please click Start Training again once awake.");
+      } else if (cat.type === "timeout") {
+        setError("Training job dispatch timed out after 75s. The backend may still be starting up. Please click Start Training again.");
+      } else {
+        setError(cat.message || "Failed to dispatch training job.");
+      }
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -16,9 +16,10 @@ import {
   X,
   Sparkles,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from "lucide-react";
-import { api, getWorkspaceId } from "@/lib/api";
+import { api, getWorkspaceId, subscribeColdStart } from "@/lib/api";
 
 const NAV_ITEMS = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -33,29 +34,13 @@ const NAV_ITEMS = [
 export function Navigation() {
   const pathname = usePathname();
   const [activeDatasetName, setActiveDatasetName] = useState<string | null>(null);
-  const [apiHealth, setApiHealth] = useState<"connected" | "disconnected" | "checking">("checking");
+  const [apiHealth, setApiHealth] = useState<"connected" | "disconnected" | "checking" | "waking">("checking");
+  const [coldStartNotice, setColdStartNotice] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string>("");
   const [clearing, setClearing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    // Check Workspace ID
-    setWorkspaceId(getWorkspaceId());
-
-    // Check API Health
-    api.getHealth()
-      .then((res) => {
-        if (res && (res.status === "ok" || res.status === "operational")) {
-          setApiHealth("connected");
-        } else {
-          setApiHealth("disconnected");
-        }
-      })
-      .catch(() => {
-        setApiHealth("disconnected");
-      });
-
-    // Check Active Dataset
+  const refreshActiveDataset = useCallback(() => {
     api.getActiveDataset()
       .then((res) => {
         if (res && res.metadata?.name) {
@@ -67,7 +52,55 @@ export function Navigation() {
       .catch(() => {
         setActiveDatasetName(null);
       });
-  }, [pathname]);
+  }, []);
+
+  const checkConnection = useCallback(async () => {
+    try {
+      const res = await api.getHealth();
+      if (res && (res.status === "ok" || res.status === "operational")) {
+        setApiHealth("connected");
+        setColdStartNotice(null);
+        refreshActiveDataset();
+        return;
+      }
+    } catch {
+      // Backend is not immediately responsive -> start waking poll
+      setApiHealth("waking");
+      setColdStartNotice("Waking up the backend. This may take up to 50 seconds.");
+
+      const isAwake = await api.verifyHealthWithWakeup(75000, 3000);
+      if (isAwake) {
+        setApiHealth("connected");
+        setColdStartNotice(null);
+        refreshActiveDataset();
+      } else {
+        setApiHealth("disconnected");
+        setColdStartNotice(null);
+      }
+    }
+  }, [refreshActiveDataset]);
+
+  useEffect(() => {
+    // Check Workspace ID
+    setWorkspaceId(getWorkspaceId());
+
+    // Subscribe to global cold-start state
+    const unsubscribe = subscribeColdStart((status) => {
+      if (status.isWaking) {
+        setApiHealth("waking");
+        setColdStartNotice(status.message || "Waking up the backend. This may take up to 50 seconds.");
+      } else if (status.isOnline) {
+        setApiHealth("connected");
+        setColdStartNotice(null);
+      }
+    });
+
+    checkConnection();
+
+    return () => {
+      unsubscribe();
+    };
+  }, [pathname, checkConnection]);
 
   const handleClearWorkspace = async () => {
     if (!confirm("Are you sure you want to clear this workspace? All active datasets, models, and evaluations will be reset.")) {
@@ -132,27 +165,55 @@ export function Navigation() {
         {/* Right Station Controls */}
         <div className="hidden lg:flex items-center space-x-1.5 xl:space-x-2.5 shrink-0">
           {/* Real Health Badge */}
-          <div
+          <button
+            onClick={() => {
+              if (apiHealth === "disconnected") {
+                setApiHealth("waking");
+                checkConnection();
+              }
+            }}
             className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono border whitespace-nowrap shrink-0 transition-colors ${
               apiHealth === "connected"
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default"
+                : apiHealth === "waking"
+                ? "bg-amber-500/10 border-amber-500/20 text-amber-300 cursor-wait"
                 : apiHealth === "checking"
-                ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
-                : "bg-rose-500/10 border-rose-500/20 text-rose-400"
+                ? "bg-amber-500/10 border-amber-500/20 text-amber-400 cursor-wait"
+                : "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20 cursor-pointer"
             }`}
-            title={`Backend Status: ${apiHealth}`}
+            title={
+              apiHealth === "connected"
+                ? "Backend API is online and operational"
+                : apiHealth === "waking"
+                ? "Waking up the backend. This may take up to 50 seconds."
+                : apiHealth === "checking"
+                ? "Checking API health..."
+                : "API Offline. Click to retry wake-up connection."
+            }
           >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                apiHealth === "connected"
-                  ? "bg-emerald-400 animate-pulse"
-                  : apiHealth === "checking"
-                  ? "bg-amber-400 animate-ping"
-                  : "bg-rose-400"
-              }`}
-            />
-            <span className="whitespace-nowrap">{apiHealth === "connected" ? "API Online" : apiHealth === "checking" ? "Checking..." : "API Offline"}</span>
-          </div>
+            {apiHealth === "waking" ? (
+              <Loader2 className="w-2.5 h-2.5 text-amber-400 animate-spin" />
+            ) : (
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  apiHealth === "connected"
+                    ? "bg-emerald-400 animate-pulse"
+                    : apiHealth === "checking"
+                    ? "bg-amber-400 animate-ping"
+                    : "bg-rose-400"
+                }`}
+              />
+            )}
+            <span className="whitespace-nowrap">
+              {apiHealth === "connected"
+                ? "API Online"
+                : apiHealth === "waking"
+                ? "Waking Backend..."
+                : apiHealth === "checking"
+                ? "Checking..."
+                : "API Offline (Retry)"}
+            </span>
+          </button>
 
           {/* Active Dataset Pill */}
           {activeDatasetName && (
@@ -203,8 +264,36 @@ export function Navigation() {
         <div className="lg:hidden border-t border-zinc-800 bg-[#09090B] px-4 py-3 space-y-2 animate-in slide-in-from-top-2 duration-150">
           <div className="flex items-center justify-between pb-1 text-xs">
             <div className="flex items-center space-x-1.5">
-              <span className={`w-2 h-2 rounded-full ${apiHealth === "connected" ? "bg-emerald-400" : "bg-rose-400"}`} />
-              <span className="text-zinc-400 font-mono">{apiHealth === "connected" ? "API Operational" : "API Disconnected"}</span>
+              {apiHealth === "waking" ? (
+                <Loader2 className="w-2.5 h-2.5 text-amber-400 animate-spin" />
+              ) : (
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    apiHealth === "connected"
+                      ? "bg-emerald-400"
+                      : apiHealth === "checking"
+                      ? "bg-amber-400 animate-ping"
+                      : "bg-rose-400"
+                  }`}
+                />
+              )}
+              <span className="text-zinc-400 font-mono">
+                {apiHealth === "connected"
+                  ? "API Operational"
+                  : apiHealth === "waking"
+                  ? "Waking Backend (~50s)..."
+                  : apiHealth === "checking"
+                  ? "Checking Health..."
+                  : "API Disconnected"}
+              </span>
+              {apiHealth === "disconnected" && (
+                <button
+                  onClick={() => checkConnection()}
+                  className="text-[10px] text-blue-400 underline ml-1"
+                >
+                  Retry
+                </button>
+              )}
             </div>
             <button
               onClick={handleClearWorkspace}
@@ -254,6 +343,15 @@ export function Navigation() {
               <span>Launch ML Studio</span>
             </Link>
           </div>
+        </div>
+      )}
+
+      {/* Render Free-Tier Cold Start Banner */}
+      {coldStartNotice && (
+        <div className="bg-amber-500/10 border-t border-b border-amber-500/20 px-4 py-1.5 text-[11px] sm:text-xs font-mono text-amber-300 flex items-center justify-center space-x-2 animate-in fade-in duration-200">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+          <span className="font-medium">{coldStartNotice}</span>
+          <span className="text-zinc-500 hidden md:inline">• Render free-tier instances spin down after inactivity</span>
         </div>
       )}
     </header>

@@ -19,7 +19,7 @@ import {
   Loader2,
   Layers,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, subscribeColdStart } from "@/lib/api";
 import { EmptyState } from "@/components/empty-state";
 import { RetroDock } from "@/components/retro-dock";
 
@@ -38,6 +38,14 @@ export default function DashboardPage() {
   const [quality, setQuality] = useState<any>(null);
   const [comparison, setComparison] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isWaking, setIsWaking] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeColdStart((status) => {
+      setIsWaking(status.isWaking);
+    });
+    return unsub;
+  }, []);
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -95,9 +103,20 @@ export default function DashboardPage() {
         </div>
 
         {loading ? (
-          <div className="p-16 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 text-center text-xs font-mono text-zinc-400 flex items-center justify-center space-x-2">
-            <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-            <span>Querying active in-memory session...</span>
+          <div className="p-16 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 text-center text-xs font-mono text-zinc-400 flex flex-col items-center justify-center space-y-2">
+            <div className="flex items-center space-x-2">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+              <span>
+                {isWaking
+                  ? "Waking up the backend. This may take up to 50 seconds on Render's free tier..."
+                  : "Querying active in-memory session..."}
+              </span>
+            </div>
+            {isWaking && (
+              <p className="text-[11px] text-zinc-500">
+                Render free-tier instances sleep after 15 min of inactivity.
+              </p>
+            )}
           </div>
         ) : !activeDataset ? (
           /* Empty State */

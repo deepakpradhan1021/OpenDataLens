@@ -2,7 +2,14 @@ import { test, expect } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
 
+const SHARED_WORKSPACE_ID = `e2e_workspace_${Date.now()}`;
+
 test.describe("OpenDataLens End-to-End Suite", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript((wsId) => {
+      window.localStorage.setItem("opendatalens_workspace_id", wsId);
+    }, SHARED_WORKSPACE_ID);
+  });
   test("1. Landing Page renders branding, hero and navigation without fake badges", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/OpenDataLens/i);
@@ -19,10 +26,10 @@ test.describe("OpenDataLens End-to-End Suite", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Explore Remote Datasets");
 
     // Verify Workflow Steps
-    await expect(page.getByText("Dataset Discovery")).toBeVisible();
-    await expect(page.getByText("Quality Intelligence")).toBeVisible();
-    await expect(page.getByText("Leak-Free ML Studio")).toBeVisible();
-    await expect(page.getByText("Leaderboard & Scoreboard")).toBeVisible();
+    await expect(page.getByText("Dataset Discovery").first()).toBeVisible();
+    await expect(page.getByText("Quality Intelligence").first()).toBeVisible();
+    await expect(page.getByText("Leak-Free ML Studio").first()).toBeVisible();
+    await expect(page.getByText("Leaderboard & Scoreboard").first()).toBeVisible();
   });
 
   test("2. Dataset Explorer loads curated dataset into active memory", async ({ page }) => {

@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   FileSpreadsheet,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, categorizeApiError } from "@/lib/api";
 import { CuratedDatasetItem, HFDatasetCard, DatasetPreviewResponse } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 import { FilterState } from "@/components/retro-filter-drawer";
@@ -63,7 +63,14 @@ export default function ExplorerPage() {
       setActiveDataset(data);
       setSuccessMsg(`Benchmark '${data.metadata.name}' loaded successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err.message || "Failed to load curated dataset.");
+      const cat = categorizeApiError(err);
+      if (cat.type === "cold_start") {
+        setError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Please click Mount again in a moment.");
+      } else if (cat.type === "timeout") {
+        setError("Connection timed out after 75s. The backend may still be starting up. Please click Mount again.");
+      } else {
+        setError(cat.message || "Failed to load curated dataset.");
+      }
     } finally {
       setLoading(false);
     }
@@ -77,7 +84,12 @@ export default function ExplorerPage() {
       const data = await api.searchHFDatasets(hfQuery, 9);
       setHfResults(data);
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err.message || "Failed to search Hugging Face.");
+      const cat = categorizeApiError(err);
+      if (cat.type === "cold_start") {
+        setError("Waking up the backend. This may take up to 50 seconds. Please try searching again once the backend is awake.");
+      } else {
+        setError(cat.message || "Failed to search Hugging Face.");
+      }
     } finally {
       setSearching(false);
     }
@@ -92,7 +104,12 @@ export default function ExplorerPage() {
       setActiveDataset(data);
       setSuccessMsg(`Streamed '${datasetName}' via HF Dataset API (${data.total_rows.toLocaleString()} rows).`);
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err.message || "Failed to load Hugging Face dataset.");
+      const cat = categorizeApiError(err);
+      if (cat.type === "cold_start") {
+        setError("Waking up the backend. This may take up to 50 seconds. Please try mounting again shortly.");
+      } else {
+        setError(cat.message || "Failed to load Hugging Face dataset.");
+      }
     } finally {
       setLoading(false);
     }
@@ -100,7 +117,7 @@ export default function ExplorerPage() {
 
   const handleUploadCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || loading) return;
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
@@ -109,9 +126,17 @@ export default function ExplorerPage() {
       setActiveDataset(data);
       setSuccessMsg(`Parsed CSV '${file.name}' (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err.message || "Failed to upload CSV file.");
+      const cat = categorizeApiError(err);
+      if (cat.type === "cold_start") {
+        setError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Please upload your CSV again in a moment.");
+      } else if (cat.type === "timeout") {
+        setError("Upload timed out after 75s. The backend may still be starting up. Please try again.");
+      } else {
+        setError(cat.message || "Failed to upload CSV file.");
+      }
     } finally {
       setLoading(false);
+      e.target.value = "";
     }
   };
 

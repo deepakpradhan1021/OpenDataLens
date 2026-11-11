@@ -23,7 +23,7 @@ import {
   HelpCircle,
   FileSpreadsheet,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, categorizeApiError } from "@/lib/api";
 import { DatasetPreviewResponse } from "@/lib/types";
 
 const PRESET_DATASETS = [
@@ -164,7 +164,14 @@ export default function HomePage() {
       setLoadSuccess(true);
     } catch (e: any) {
       console.error("Failed to load preset dataset", e);
-      setLoadError(e.response?.data?.detail || e.message || "Failed to mount demo dataset. Ensure backend service is reachable.");
+      const cat = categorizeApiError(e);
+      if (cat.type === "cold_start") {
+        setLoadError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Please click Retry Mounting once awake.");
+      } else if (cat.type === "timeout") {
+        setLoadError("Connection timed out after 75s. The backend may still be starting up. Please click Retry Mounting.");
+      } else {
+        setLoadError(cat.message || "Failed to mount demo dataset. Ensure backend service is reachable.");
+      }
     } finally {
       setLoading(false);
     }

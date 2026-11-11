@@ -280,3 +280,20 @@ export interface CopilotResponse {
   intent: string;
   suggested_followups: string[];
 }
+
+export type ApiErrorType = "cold_start" | "timeout" | "offline" | "api_error" | "unknown";
+
+export interface CategorizedError {
+  type: ApiErrorType;
+  message: string;
+  statusCode?: number;
+  canRetry: boolean;
+}
+
+export interface ColdStartStatus {
+  isWaking: boolean;
+  message: string;
+  isOnline: boolean;
+  elapsedSeconds?: number;
+}
+
