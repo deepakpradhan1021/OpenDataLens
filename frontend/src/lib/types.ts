@@ -110,6 +110,31 @@ export interface QualityAnalysisResponse {
   };
 }
 
+export interface NumericDistributionBin {
+  bin: string;
+  min: number;
+  max: number;
+  count: number;
+}
+
+export interface CategoricalDistributionItem {
+  category: string;
+  count: number;
+}
+
+export interface ColumnDistributionResponse {
+  type: "numeric" | "categorical" | "empty";
+  column: string;
+  min?: number;
+  max?: number;
+  mean?: number;
+  median?: number;
+  bins?: NumericDistributionBin[];
+  unique?: number;
+  categories?: CategoricalDistributionItem[];
+  data?: any[];
+}
+
 export interface TargetCandidatesResponse {
   classification: string[];
   regression: string[];
@@ -202,14 +227,14 @@ export interface DriftFeatureMetric {
   ks_p_value?: number;
   tvd?: number;
   top_shifted_category?: string;
-  status: "stable" | "warning" | "drifted";
+  status: "stable" | "warning" | "drifted" | "insufficient_data";
   recommendation: string;
   reference_stats?: Record<string, any>;
   target_stats?: Record<string, any>;
 }
 
 export interface DriftAnalysisResponse {
-  overall_status: "stable" | "moderate_drift" | "significant_drift";
+  overall_status: "stable" | "moderate_drift" | "significant_drift" | "insufficient_data";
   badge_label: string;
   summary: string;
   mean_psi: number;
@@ -223,6 +248,7 @@ export interface DriftAnalysisResponse {
     removed_columns: string[];
     added_columns: string[];
     common_columns_count: number;
+    type_mismatches?: { column: string; reference_dtype: string; target_dtype: string }[];
   };
   missing_value_shifts: Record<string, {
     reference_pct: number;

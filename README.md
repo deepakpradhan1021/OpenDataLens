@@ -5,10 +5,10 @@
 [![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20App-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://opendatalens-app.vercel.app)
 [![Render Backend](https://img.shields.io/badge/Render-Live%20API-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://opendatalens.onrender.com/docs)
 [![CI Pipeline](https://img.shields.io/github/actions/workflow/status/deepakpradhan1021/OpenDataLens/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI%20Pipeline)](https://github.com/deepakpradhan1021/OpenDataLens/actions/workflows/ci.yml)
-[![Pytest Suite](https://img.shields.io/badge/Pytest-67%20Passed%20(100%25)-10B981?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
+[![Pytest Suite](https://img.shields.io/badge/Pytest-75%20Passed%20(100%25)-10B981?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
-**A production-ready, developer-first machine learning workbench and automated model evaluation platform.**  
+**A portfolio-grade machine learning workbench and automated model evaluation platform.**  
 *Discover, profile, evaluate, explain, and benchmark machine learning models with zero data leakage.*
 
 [**Live Web Application**](https://opendatalens-app.vercel.app) • [**Interactive Swagger Docs**](https://opendatalens.onrender.com/docs) • [**System Health**](https://opendatalens.onrender.com/api/health) • [**Report a Bug**](https://github.com/deepakpradhan1021/OpenDataLens/issues)
@@ -17,17 +17,22 @@
 
 ---
 
+> [!NOTE]
+> **Portfolio Platform Context:** OpenDataLens is an interactive portfolio and demonstration platform designed to showcase end-to-end ML engineering, clean architectural design, and rigorous validation. Workspaces utilize cryptographic session tokens with in-memory TTL caching rather than persistent enterprise accounts.
+
+---
+
 ## Highlights & Features
 
 | Capability | Technical Implementation | Highlights |
 | :--- | :--- | :--- |
-| **Workspace Session Isolation** | Cryptographic UUIDv4 tokens via `SessionStore` & TTL eviction | Multi-tenant isolation; zero cross-user pollution; 1-click workspace clearing |
+| **Workspace Session Isolation** | Cryptographic UUIDv4 tokens via `SessionStore` & TTL eviction | Multi-tenant session separation; zero cross-user state leakage; 1-click workspace clearing |
 | **Explainable AI (XAI)** | `sklearn.inspection.permutation_importance` on held-out test split | Permutation Feature Importance, native model weights, single-sample prediction attribution |
-| **Data Drift Detection** | Two-sample Kolmogorov-Smirnov (`scipy.stats.ks_2samp`) & PSI | Population Stability Index (PSI), distribution shift charts, categorical Total Variation Distance (TVD) |
+| **On-Demand Data Drift** | Two-sample Kolmogorov-Smirnov (`scipy.stats.ks_2samp`) & PSI | Population Stability Index (PSI), distribution shift charts, categorical Total Variation Distance (TVD) |
 | **Leak-Free ML Studio** | Stratified K-Fold / K-Fold (3, 5, 10 folds) with `ColumnTransformer` | Zero data leakage: standard/robust/minmax scalers fitted exclusively on training folds |
 | **Quality Intelligence** | Interquartile Range (IQR) & 3-sigma z-score outlier detection | Target leakage flags (\|r\| ≥ 0.95), high-cardinality warnings, completeness scoring |
-| **AI Dataset Copilot** | Deterministic heuristic reasoning engine | Grounded answers on quality, missing values, and model champions with 0 latency & 0 API cost |
-| **Artifact Export Bay** | Scikit-Learn `.joblib` serialization, HTML dossiers, JSON reports | Production-ready downloadable model artifacts and standalone shareable audit dossiers |
+| **AI Dataset Copilot** | Deterministic heuristic reasoning engine | Grounded answers on quality, missing values, and model champions with 0 latency & 0 external API cost |
+| **Artifact Export Bay** | Scikit-Learn `.joblib` serialization, HTML dossiers, JSON reports | Downloadable model binaries and standalone shareable audit dossiers |
 
 ---
 
@@ -51,7 +56,7 @@ flowchart TD
         QUAL["Data Quality Intelligence & Outliers"]
         STUDIO["ML Studio (K-Fold CV & Scalers)"]
         COMP["Model Scoreboard & Explainable AI"]
-        DRIFT["Data Drift & Stability Monitor (PSI)"]
+        DRIFT["On-Demand Data Drift & PSI Monitor"]
         REP["Export Bay (.joblib / HTML / JSON)"]
     end
 
@@ -80,9 +85,30 @@ flowchart TD
 
 ---
 
-## Authoritative Curated Benchmark Catalog
+## Methodological Rigor & Technical Disclosures
 
-OpenDataLens includes an authoritative catalog of benchmark datasets pre-loaded and ready for immediate experimentation:
+### 1. Leak-Free Preprocessing Architecture
+OpenDataLens guarantees strict prevention of data leakage:
+- Imputers and scalers (`StandardScaler`, `RobustScaler`, `MinMaxScaler`) are fit **only on training folds** within `scikit-learn.pipeline.Pipeline` objects.
+- In cross-validation, transformations are learned within each respective fold split, preventing test distribution leakage into the training phase.
+
+### 2. Permutation Importance & Collinear Features
+- Feature importance is calculated via `sklearn.inspection.permutation_importance` over the held-out validation split.
+- **Collinearity Consideration:** When two or more features are strongly correlated, permuting one feature while preserving the others allows the model to access redundant predictive signal from the unpermuted feature. This can result in a smaller observed performance drop for both features. OpenDataLens surfaces the full correlation matrix in the Quality Intelligence profiler so practitioners can evaluate collinearity alongside permutation rankings.
+
+### 3. On-Demand Drift Detection vs Continuous Monitoring
+- The Data Drift module performs **on-demand statistical comparisons** across dataset partitions (e.g. baseline 50% vs evaluation 50%) or against an uploaded target CSV.
+- It applies the **Population Stability Index (PSI)**, the **Two-Sample Kolmogorov-Smirnov Test** for continuous distributions, and **Total Variation Distance (TVD)** for categorical distributions.
+- It is an on-demand auditing tool rather than a real-time event-streaming monitoring daemon.
+- Partitions with $N < 10$ records report `Insufficient Data` to prevent false "Stable" classifications.
+
+### 4. Workspace Session Lifetime
+- Workspaces are ephemeral demo sessions indexed by cryptographically random UUIDv4 identifiers.
+- State is held in a thread-safe in-memory session store with active TTL eviction and clean cancellation of running jobs upon workspace reset.
+
+---
+
+## Authoritative Curated Benchmark Catalog
 
 | Dataset ID | Benchmark Name | Samples | Features | Target Column | Task Type | Source Attribution |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -93,7 +119,7 @@ OpenDataLens includes an authoritative catalog of benchmark datasets pre-loaded 
 | `diabetes` | Diabetes Disease Progression | 442 | 10 | `target` | Regression | Scikit-Learn |
 | `titanic_synthetic` | Titanic Survivorship Benchmark | 891 | 8 | `Survived` | Binary | Synthetic Demo Benchmark |
 
-*Note: Legacy identifiers (`wine_quality`, `titanic`, `titanic_sample`) automatically resolve to their canonical counterparts with 100% backward compatibility.*
+*Note: Legacy identifiers (`wine_quality`, `titanic`, `titanic_sample`) automatically resolve to their canonical catalog counterparts with backward compatibility.*
 
 ---
 
@@ -133,18 +159,19 @@ OpenDataLens/
 │   │   ├── app/                    # Next.js App Router pages
 │   │   │   ├── page.tsx            # Landing Page & Try Demo Sandbox
 │   │   │   ├── dashboard/page.tsx  # Telemetry Dashboard
-│   │   │   ├── drift/page.tsx      # Data Drift Detection Page
+│   │   │   ├── drift/page.tsx      # On-Demand Data Drift Detection
 │   │   │   ├── explorer/page.tsx   # Dataset Explorer & Ingestion
 │   │   │   ├── quality/page.tsx    # Quality Intelligence & Copilot
 │   │   │   ├── studio/page.tsx     # ML Training Studio (K-Fold CV)
 │   │   │   ├── comparison/page.tsx # Model Scoreboard & Explainability (XAI)
 │   │   │   └── reports/page.tsx    # Evaluation Reports & Model Export
-│   │   ├── components/             # Reusable UI components & navigation
+│   │   ├── components/             # UI components & navigation
 │   │   └── lib/                    # API client, workspace UUID, TypeScript types
 │   ├── tests/                      # Playwright end-to-end test suite
 │   ├── package.json                # Frontend dependencies
+│   ├── .eslintrc.json              # Next.js Core Web Vitals ESLint config
 │   └── tailwind.config.ts          # Modern dark-mode theme configuration
-├── tests/                          # Backend Pytest test suite (67 tests)
+├── tests/                          # Backend Pytest test suite (75 tests)
 └── .github/
     ├── workflows/
     │   └── ci.yml                  # Automated GitHub Actions CI pipeline
@@ -195,7 +222,7 @@ npm install
 # Start development server
 npm run dev
 ```
-*Frontend runs on `http://localhost:3000` and automatically connects to `http://localhost:8000/api`.*
+*Frontend runs on `http://localhost:3000` and connects to `http://localhost:8000/api`.*
 
 ---
 
@@ -208,30 +235,32 @@ OpenDataLens maintains full automated test coverage across all layers:
 python -m pytest -v
 ```
 ```text
-============================= 67 passed in 8.33s ==============================
+============================= 75 passed in 8.64s ==============================
 ```
 Covers:
-- `test_session_isolation.py`: UUID session validation, TTL eviction, cross-tenant isolation.
+- `test_session_isolation.py`: UUID session validation, TTL eviction, cross-tenant isolation, running job cancellation on workspace reset, refusal of post-cancellation session recreation.
 - `test_cross_validation.py`: Stratified K-Fold & K-Fold leak-free preprocessing.
-- `test_drift_detector.py`: PSI calculation, Kolmogorov-Smirnov 2-sample tests, categorical TVD.
-- `test_explainability.py`: Permutation Feature Importance & baseline prediction attributions.
+- `test_drift_detector.py`: PSI calculation, Kolmogorov-Smirnov 2-sample tests, categorical TVD, insufficient sample size protection ($N<10$), schema/type mismatch detection.
+- `test_explainability.py`: Permutation Feature Importance & prediction attributions.
 - `test_quality_intelligence.py`: IQR outliers, high cardinality, and target leakage ($|r| \ge 0.95$).
 - `test_copilot.py`: Deterministic dataset and model reasoning queries.
-- `test_fastapi_endpoints.py`: All REST API routes, status codes, and payload validation.
+- `test_fastapi_endpoints.py`: All REST API routes, status codes, payload validation, target leakage 400 rejection, invalid feature 400 rejection, and job ownership 403 access control.
 
-### 2. Frontend Production Build & Typecheck
+### 2. Frontend ESLint & Production Build
 ```bash
 cd frontend
+npm run lint
 npm run build
 ```
 ```text
+✔ No ESLint warnings or errors
 Route (app)                              Size     First Load JS
-┌ ○ /                                    6.63 kB         124 kB
+┌ ○ /                                    6.8 kB          125 kB
 ├ ○ /comparison                          11.1 kB         230 kB
-├ ○ /dashboard                           3.71 kB         126 kB
-├ ○ /drift                               4.83 kB         123 kB
+├ ○ /dashboard                           3.9 kB          126 kB
+├ ○ /drift                               5.52 kB         123 kB
 ├ ○ /explorer                            4.44 kB         127 kB
-├ ○ /quality                             6.24 kB         226 kB
+├ ○ /quality                             6.91 kB         226 kB
 ├ ○ /reports                             2.6 kB          125 kB
 └ ○ /studio                              4.84 kB         127 kB
 + First Load JS shared by all            87.5 kB
@@ -256,7 +285,7 @@ Exit code: 0
 3. In **Settings → Environment Variables**, add:
    - **Key:** `NEXT_PUBLIC_API_URL`
    - **Value:** `https://<your-service>.onrender.com/api`
-4. Click **Deploy**. The frontend will automatically connect to your live Render backend.
+4. Click **Deploy**. The frontend connects directly to your live Render backend.
 
 ---
 

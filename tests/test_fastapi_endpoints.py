@@ -143,3 +143,87 @@ def test_upload_csv_endpoint():
     data = resp.json()
     assert data["total_rows"] == 4
     assert data["total_cols"] == 3
+
+
+def test_target_leakage_rejection():
+    session_id = "test_leakage_session"
+    load_resp = client.post("/api/datasets/load-curated", json={"dataset_id": "iris", "session_id": session_id})
+    assert load_resp.status_code == 200
+
+    # Including target column in feature_cols must be rejected with 400
+    leak_req = {
+        "session_id": session_id,
+        "problem_type": "classification",
+        "target_col": "target",
+        "feature_cols": ["sepal length (cm)", "target"],  # LEAKAGE
+        "selected_models": ["logistic_regression"],
+        "scaler_type": "standard",
+        "test_size": 0.2
+    }
+    resp = client.post("/api/ml/train", json=leak_req)
+    assert resp.status_code == 400
+    assert "target leakage" in resp.json()["detail"].lower()
+
+
+def test_invalid_feature_columns_rejection():
+    session_id = "test_invalid_feats"
+    client.post("/api/datasets/load-curated", json={"dataset_id": "iris", "session_id": session_id})
+
+    req = {
+        "session_id": session_id,
+        "problem_type": "classification",
+        "target_col": "target",
+        "feature_cols": ["non_existent_column_123"],
+        "selected_models": ["logistic_regression"],
+        "scaler_type": "standard",
+        "test_size": 0.2
+    }
+    resp = client.post("/api/ml/train", json=req)
+    assert resp.status_code == 400
+    assert "do not exist" in resp.json()["detail"].lower()
+
+
+def test_invalid_model_type_rejection():
+    session_id = "test_invalid_model"
+    client.post("/api/datasets/load-curated", json={"dataset_id": "iris", "session_id": session_id})
+
+    req = {
+        "session_id": session_id,
+        "problem_type": "classification",
+        "target_col": "target",
+        "feature_cols": ["sepal length (cm)"],
+        "selected_models": ["super_deep_transformer_unknown"],
+        "scaler_type": "standard",
+        "test_size": 0.2
+    }
+    resp = client.post("/api/ml/train", json=req)
+    assert resp.status_code == 400
+    assert "invalid model architectures" in resp.json()["detail"].lower()
+
+
+def test_job_ownership_access_denied():
+    session_owner = "owner_workspace_1"
+    session_intruder = "intruder_workspace_2"
+    client.post("/api/datasets/load-curated", json={"dataset_id": "iris", "session_id": session_owner})
+
+    train_req = {
+        "session_id": session_owner,
+        "problem_type": "classification",
+        "target_col": "target",
+        "feature_cols": ["sepal length (cm)", "sepal width (cm)"],
+        "selected_models": ["logistic_regression"],
+        "scaler_type": "standard",
+        "test_size": 0.2
+    }
+    train_resp = client.post("/api/ml/train", json=train_req)
+    assert train_resp.status_code == 200
+    job_id = train_resp.json()["job_id"]
+
+    # Owner can poll with own session ID
+    owner_poll = client.get(f"/api/ml/train/status/{job_id}", headers={"X-Session-ID": session_owner})
+    assert owner_poll.status_code == 200
+
+    # Intruder polling with different session ID must receive 403 Forbidden
+    intruder_poll = client.get(f"/api/ml/train/status/{job_id}", headers={"X-Session-ID": session_intruder})
+    assert intruder_poll.status_code == 403
+    assert "access denied" in intruder_poll.json()["detail"].lower()

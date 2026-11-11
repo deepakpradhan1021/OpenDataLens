@@ -149,6 +149,7 @@ export default function HomePage() {
   const [loadedDataset, setLoadedDataset] = useState<DatasetPreviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadSuccess, setLoadSuccess] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const currentPreset = PRESET_DATASETS.find((d) => d.id === selectedDatasetId) || PRESET_DATASETS[0];
 
@@ -156,12 +157,14 @@ export default function HomePage() {
     setSelectedDatasetId(datasetId);
     setLoading(true);
     setLoadSuccess(false);
+    setLoadError(null);
     try {
       const data = await api.loadCuratedDataset(datasetId);
       setLoadedDataset(data);
       setLoadSuccess(true);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load preset dataset", e);
+      setLoadError(e.response?.data?.detail || e.message || "Failed to mount demo dataset. Ensure backend service is reachable.");
     } finally {
       setLoading(false);
     }
@@ -295,6 +298,19 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
+
+          {/* Preset Load Error Banner */}
+          {loadError && (
+            <div className="p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs flex items-center justify-between">
+              <span className="font-medium">{loadError}</span>
+              <button
+                onClick={() => handleQuickLoad(selectedDatasetId)}
+                className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold transition-colors"
+              >
+                Retry Mounting
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

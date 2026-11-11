@@ -7,6 +7,7 @@ and asynchronous job progress with cryptographically secure session IDs and TTL 
 import time
 import re
 import uuid
+import secrets
 import logging
 import threading
 from typing import Dict, Any, Optional, List
@@ -161,6 +162,13 @@ class SessionStore:
                 return session.get("quality_analysis")
             return None
 
+    def has_session(self, session_id: str) -> bool:
+        """Check if an active session exists without initializing one."""
+        with self._lock:
+            if not is_valid_session_id(session_id):
+                return False
+            return session_id.strip() in self._sessions
+
     def set_ml_results(
         self,
         session_id: str,
@@ -168,9 +176,15 @@ class SessionStore:
         trained_models: Dict[str, Any],
         model_evaluations: Dict[str, Any],
         comparison_df: pd.DataFrame
-    ) -> None:
+    ) -> bool:
         with self._lock:
-            session = self.get_or_create_session(session_id)
+            clean_id = session_id.strip() if session_id else ""
+            if clean_id not in self._sessions:
+                logger.warning(
+                    f"[SessionStore] Prevented writing ML results to cleared/expired session: {clean_id}"
+                )
+                return False
+            session = self._sessions[clean_id]
             session["ml_meta"] = ml_meta
             session["trained_models"] = trained_models
             session["model_evaluations"] = model_evaluations
@@ -178,17 +192,22 @@ class SessionStore:
             now = time.time()
             session["updated_at"] = now
             session["last_accessed_at"] = now
+            return True
 
-    def record_experiment(self, session_id: str, experiment_data: Dict[str, Any]) -> None:
-        """Append an experiment run record to the session history."""
+    def record_experiment(self, session_id: str, experiment_data: Dict[str, Any]) -> bool:
+        """Append an experiment run record to the session history if session still exists."""
         with self._lock:
-            session = self.get_or_create_session(session_id)
+            clean_id = session_id.strip() if session_id else ""
+            if clean_id not in self._sessions:
+                return False
+            session = self._sessions[clean_id]
             if "experiments" not in session:
                 session["experiments"] = []
             session["experiments"].append(experiment_data)
             now = time.time()
             session["updated_at"] = now
             session["last_accessed_at"] = now
+            return True
 
     def get_experiments(self, session_id: str) -> List[Dict[str, Any]]:
         with self._lock:
@@ -201,12 +220,29 @@ class SessionStore:
             return []
 
     def clear_session(self, session_id: str) -> bool:
-        """Clear all workspace data and artifacts for the given session ID."""
+        """
+        Clear all workspace data and artifacts for the given session ID,
+        and cancel any pending or actively executing background training jobs.
+        """
         with self._lock:
             clean_id = session_id.strip() if session_id else ""
+            now = time.time()
+            cancelled_jobs_count = 0
+
+            # Invalidate and cancel all associated running/pending jobs
+            for jid, job in self._jobs.items():
+                if job.get("session_id") == clean_id and job.get("status") in ["pending", "running"]:
+                    job["status"] = "cancelled"
+                    job["error"] = "Workspace session was cleared by user."
+                    job["completed_at"] = now
+                    cancelled_jobs_count += 1
+
             if clean_id in self._sessions:
                 del self._sessions[clean_id]
-                logger.info(f"[SessionStore] Cleared workspace session: {clean_id}")
+                logger.info(
+                    f"[SessionStore] Cleared workspace session: {clean_id} "
+                    f"(cancelled {cancelled_jobs_count} running jobs)"
+                )
                 return True
             return False
 
@@ -214,7 +250,7 @@ class SessionStore:
         with self._lock:
             self._jobs[job_id] = {
                 "job_id": job_id,
-                "session_id": session_id,
+                "session_id": session_id.strip() if session_id else "default",
                 "status": "pending",
                 "progress": 0,
                 "total_models": total_models,

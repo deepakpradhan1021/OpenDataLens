@@ -13,7 +13,8 @@ import {
   ExplainabilityResponse,
   DriftAnalysisResponse,
   ExperimentRun,
-  CopilotResponse
+  CopilotResponse,
+  ColumnDistributionResponse
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -133,7 +134,7 @@ export const api = {
     return data;
   },
 
-  getColumnDistribution: async (column: string, sessionId?: string) => {
+  getColumnDistribution: async (column: string, sessionId?: string): Promise<ColumnDistributionResponse> => {
     const sid = sessionId || getWorkspaceId();
     const { data } = await apiClient.get("/quality/distribution", {
       params: { column, session_id: sid },

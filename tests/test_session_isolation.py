@@ -66,3 +66,39 @@ def test_session_expiration():
     evicted_count = short_store.evict_expired()
     assert evicted_count >= 1
     assert short_store.get_dataset(sid) is None
+
+
+def test_clear_session_cancels_running_jobs():
+    store = SessionStore()
+    sid = generate_session_id()
+    store.set_dataset(sid, pd.DataFrame({"a": [1, 2]}), {"name": "Test"})
+
+    job_id = "job_test_cancel_12345"
+    store.create_job(job_id=job_id, session_id=sid, total_models=2)
+    store.update_job(job_id, status="running", progress=50)
+
+    assert store.get_job(job_id)["status"] == "running"
+
+    # Clearing session must cancel associated running jobs
+    store.clear_session(sid)
+    job = store.get_job(job_id)
+    assert job["status"] == "cancelled"
+    assert "cleared" in job["error"].lower()
+
+
+def test_cancelled_job_cannot_recreate_session():
+    store = SessionStore()
+    sid = generate_session_id()
+    store.set_dataset(sid, pd.DataFrame({"a": [1, 2]}), {"name": "Test"})
+    store.clear_session(sid)
+
+    # Calling set_ml_results on cleared session must return False and NOT recreate session
+    res = store.set_ml_results(
+        session_id=sid,
+        ml_meta={},
+        trained_models={},
+        model_evaluations={},
+        comparison_df=pd.DataFrame()
+    )
+    assert res is False
+    assert store.has_session(sid) is False

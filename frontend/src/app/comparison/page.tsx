@@ -43,6 +43,20 @@ import {
   ExperimentRun,
 } from "@/lib/types";
 
+function formatScoreValue(score: number | null | undefined, metricName?: string, problemType?: string): string {
+  if (score === null || score === undefined || typeof score !== "number") return "N/A";
+  const m = (metricName || "").toLowerCase();
+  const isRegression = problemType === "regression" || m.includes("r²") || m.includes("r2") || m.includes("mae") || m.includes("rmse") || m.includes("mse");
+  if (isRegression) {
+    return score.toFixed(4);
+  }
+  // Classification rates: Accuracy, Macro F1, Precision, Recall
+  if (score <= 1.0) {
+    return `${(score * 100).toFixed(2)}%`;
+  }
+  return score.toFixed(4);
+}
+
 export default function ComparisonPage() {
   const [activeTab, setActiveTab] = useState<"leaderboard" | "explainability" | "experiments">("leaderboard");
   const [comparison, setComparison] = useState<ModelComparisonResponse | null>(null);
@@ -215,9 +229,7 @@ export default function ComparisonPage() {
               <div className="text-xs text-zinc-400 font-mono">
                 Primary Metric: {comparison.champion.metric} ={" "}
                 <span className="font-bold text-emerald-400">
-                  {typeof comparison.champion.score === "number" && comparison.champion.score <= 1.0
-                    ? `${(comparison.champion.score * 100).toFixed(2)}%`
-                    : comparison.champion.score}
+                  {formatScoreValue(comparison.champion.score, comparison.champion.metric, comparison.problem_type)}
                 </span>
               </div>
             </div>
@@ -323,7 +335,7 @@ export default function ComparisonPage() {
                           </td>
                           {metricOptions.map((m) => (
                             <td key={m} className="p-3.5 text-right font-bold text-zinc-200">
-                              {typeof row[m] === "number" ? row[m].toFixed(4) : row[m]}
+                              {typeof row[m] === "number" ? formatScoreValue(row[m], m, comparison.problem_type) : row[m]}
                             </td>
                           ))}
                           <td className="p-3.5 text-center font-bold text-blue-400">
@@ -615,7 +627,7 @@ export default function ComparisonPage() {
                     <span>Reproducible Experiment Tracking</span>
                   </h3>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    Complete immutable log of all model training runs, hyperparameters, CV folds, and scoreboard outputs in this workspace session.
+                    Audit trail of all model training runs, hyperparameters, CV folds, and scoreboard outputs in this temporary workspace session.
                   </p>
                 </div>
 

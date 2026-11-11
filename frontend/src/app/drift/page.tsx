@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -16,6 +16,8 @@ import {
   ChevronRight,
   TrendingDown,
   TrendingUp,
+  HelpCircle,
+  ShieldAlert,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { DriftAnalysisResponse } from "@/lib/types";
@@ -27,7 +29,7 @@ export default function DriftPage() {
   const [splitRatio, setSplitRatio] = useState(0.5);
   const [uploading, setUploading] = useState(false);
 
-  const loadDrift = async (ratio = splitRatio) => {
+  const loadDrift = useCallback(async (ratio = splitRatio) => {
     setLoading(true);
     setError(null);
     try {
@@ -42,11 +44,11 @@ export default function DriftPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [splitRatio]);
 
   useEffect(() => {
     loadDrift();
-  }, []);
+  }, [loadDrift]);
 
   const handleTargetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,13 +141,17 @@ export default function DriftPage() {
                 <div className="text-xs font-mono text-zinc-400 uppercase tracking-wider">Overall Drift Status</div>
                 <div className="my-3">
                   <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-bold border ${
-                    driftReport.overall_status === "significant_drift"
+                    driftReport.overall_status === "insufficient_data"
+                      ? "bg-zinc-800 border-zinc-700 text-zinc-300"
+                      : driftReport.overall_status === "significant_drift"
                       ? "bg-rose-500/15 border-rose-500/30 text-rose-400"
                       : driftReport.overall_status === "moderate_drift"
                       ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
                       : "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
                   }`}>
-                    {driftReport.overall_status === "significant_drift" ? (
+                    {driftReport.overall_status === "insufficient_data" ? (
+                      <AlertCircle className="w-4 h-4 text-zinc-400" />
+                    ) : driftReport.overall_status === "significant_drift" ? (
                       <AlertTriangle className="w-4 h-4" />
                     ) : driftReport.overall_status === "moderate_drift" ? (
                       <AlertCircle className="w-4 h-4" />
@@ -189,7 +195,7 @@ export default function DriftPage() {
               <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/60 flex flex-col justify-between">
                 <div className="text-xs font-mono text-zinc-400 uppercase tracking-wider">Schema Integrity</div>
                 <div className="text-3xl font-bold text-white my-2 font-mono">
-                  {driftReport.schema_changes.removed_columns.length === 0 && driftReport.schema_changes.added_columns.length === 0 ? (
+                  {driftReport.schema_changes.removed_columns.length === 0 && driftReport.schema_changes.added_columns.length === 0 && (!driftReport.schema_changes.type_mismatches || driftReport.schema_changes.type_mismatches.length === 0) ? (
                     <span className="text-emerald-400 text-xl font-semibold flex items-center space-x-1.5">
                       <CheckCircle2 className="w-5 h-5" />
                       <span>Consistent</span>
@@ -197,12 +203,36 @@ export default function DriftPage() {
                   ) : (
                     <span className="text-amber-400 text-lg font-semibold">
                       {driftReport.schema_changes.removed_columns.length} removed, {driftReport.schema_changes.added_columns.length} added
+                      {driftReport.schema_changes.type_mismatches && driftReport.schema_changes.type_mismatches.length > 0 && `, ${driftReport.schema_changes.type_mismatches.length} type shifts`}
                     </span>
                   )}
                 </div>
                 <div className="text-xs text-zinc-500">
                   {driftReport.schema_changes.common_columns_count} matched columns
                 </div>
+              </div>
+            </div>
+
+            {/* Methodology & Statistical Interpretation Guide */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs text-zinc-300 space-y-1.5">
+                <div className="flex items-center space-x-1.5 font-bold text-blue-300">
+                  <Info className="w-4 h-4 text-blue-400" />
+                  <span>On-Demand Partition Testing</span>
+                </div>
+                <p className="text-zinc-400 leading-relaxed">
+                  OpenDataLens executes on-demand statistical comparisons across data splits or against an uploaded target CSV. Partition splitting compares baseline records against subsequent rows to audit structural changes, rather than claiming automated real-time background production monitoring.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 text-xs text-zinc-300 space-y-1.5">
+                <div className="flex items-center space-x-1.5 font-bold text-zinc-200">
+                  <Sliders className="w-4 h-4 text-indigo-400" />
+                  <span>Metric Benchmarks &amp; Statistical Significance</span>
+                </div>
+                <p className="text-zinc-400 leading-relaxed">
+                  <strong>PSI &lt; 0.10:</strong> Stable. <strong>0.10–0.25:</strong> Moderate drift. <strong>&gt; 0.25:</strong> Severe population shift. Two-sample Kolmogorov-Smirnov (KS) tests flag continuous distributional divergences at <em>p &lt; 0.05</em>. Partitions with &lt;10 observations are flagged as <em>Insufficient Data</em>.
+                </p>
               </div>
             </div>
 
@@ -260,13 +290,15 @@ export default function DriftPage() {
                         </td>
                         <td className="py-3.5 px-4">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold uppercase font-mono ${
-                            feat.status === "drifted"
+                            feat.status === "insufficient_data"
+                              ? "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                              : feat.status === "drifted"
                               ? "bg-rose-500/15 text-rose-400 border border-rose-500/30"
                               : feat.status === "warning"
                               ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
                               : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
                           }`}>
-                            {feat.status}
+                            {feat.status.replace("_", " ")}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-zinc-300 max-w-md">

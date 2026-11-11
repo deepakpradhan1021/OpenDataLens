@@ -32,57 +32,80 @@ import {
   Cell,
 } from "recharts";
 import { api } from "@/lib/api";
-import { QualityAnalysisResponse, CopilotResponse } from "@/lib/types";
+import { QualityAnalysisResponse, CopilotResponse, ColumnDistributionResponse } from "@/lib/types";
 
 export default function QualityPage() {
   const [quality, setQuality] = useState<QualityAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [qualityError, setQualityError] = useState<string | null>(null);
   const [selectedCol, setSelectedCol] = useState<string>("");
-  const [distData, setDistData] = useState<any>(null);
+  const [distData, setDistData] = useState<ColumnDistributionResponse | null>(null);
   const [distLoading, setDistLoading] = useState(false);
+  const [distError, setDistError] = useState<string | null>(null);
 
   // Copilot Assistant State
   const [copilotQuery, setCopilotQuery] = useState("");
   const [copilotLoading, setCopilotLoading] = useState(false);
+  const [copilotError, setCopilotError] = useState<string | null>(null);
   const [copilotResponse, setCopilotResponse] = useState<CopilotResponse | null>(null);
 
-  useEffect(() => {
-    async function fetchQuality() {
-      try {
-        const q = await api.getQualityAnalysis();
-        setQuality(q);
-        const firstCol = Object.keys(q.missing_summary)[0];
-        if (firstCol) {
-          setSelectedCol(firstCol);
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+  const fetchQuality = async () => {
+    setLoading(true);
+    setQualityError(null);
+    try {
+      const q = await api.getQualityAnalysis();
+      setQuality(q);
+      const firstCol = Object.keys(q.missing_summary)[0];
+      if (firstCol) {
+        setSelectedCol(firstCol);
       }
+    } catch (e: any) {
+      console.error(e);
+      setQualityError(e.response?.data?.detail || "Failed to load quality analysis. Ensure a dataset is active in your workspace.");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchQuality();
   }, []);
 
-  useEffect(() => {
-    if (!selectedCol) return;
+  const fetchColumnDistribution = (colName: string) => {
+    if (!colName) return;
     setDistLoading(true);
-    api.getColumnDistribution(selectedCol)
-      .then(setDistData)
-      .catch(console.error)
+    setDistError(null);
+    api.getColumnDistribution(colName)
+      .then((res) => {
+        setDistData(res);
+        setDistError(null);
+      })
+      .catch((err: any) => {
+        console.error(err);
+        setDistError(err.response?.data?.detail || "Failed to calculate distribution histogram.");
+        setDistData(null);
+      })
       .finally(() => setDistLoading(false));
+  };
+
+  useEffect(() => {
+    if (selectedCol) {
+      fetchColumnDistribution(selectedCol);
+    }
   }, [selectedCol]);
 
   const handleAskCopilot = async (question?: string) => {
     const qText = question || copilotQuery;
     if (!qText.trim()) return;
     setCopilotLoading(true);
+    setCopilotError(null);
     try {
       const res = await api.queryCopilot(qText);
       setCopilotResponse(res);
       setCopilotQuery("");
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setCopilotError(e.response?.data?.detail || "Copilot failed to generate an answer. Click to retry.");
     } finally {
       setCopilotLoading(false);
     }
@@ -95,6 +118,39 @@ export default function QualityPage() {
           <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
           <div className="text-xs font-mono text-zinc-400">
             Computing statistical moments, IQR outlier boundaries, and quality health scores...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (qualityError) {
+    return (
+      <div className="min-h-screen bg-[#09090B] text-zinc-100 p-8 flex items-center justify-center">
+        <div className="max-w-xl mx-auto rounded-2xl border border-rose-500/30 bg-[#101014] p-10 text-center space-y-5">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-base font-bold text-white">Quality Analysis Error</h3>
+            <p className="text-xs text-rose-300 max-w-sm mx-auto leading-relaxed">
+              {qualityError}
+            </p>
+          </div>
+          <div className="flex items-center justify-center space-x-3 pt-2">
+            <button
+              onClick={() => fetchQuality()}
+              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold border border-zinc-700 transition-colors"
+            >
+              Retry Analysis
+            </button>
+            <Link
+              href="/explorer"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-all"
+            >
+              <span>Go to Explorer</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </div>
@@ -273,6 +329,19 @@ export default function QualityPage() {
             </button>
           </div>
 
+          {/* Copilot Error Alert */}
+          {copilotError && (
+            <div className="mt-2 p-3 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs text-rose-300 flex items-center justify-between">
+              <span>{copilotError}</span>
+              <button
+                onClick={() => handleAskCopilot()}
+                className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-white font-semibold transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* Copilot Answer Display */}
           {copilotResponse && (
             <div className="mt-3 p-4 rounded-xl border border-blue-500/20 bg-blue-950/30 text-xs text-zinc-200 space-y-2 animate-in fade-in duration-200">
@@ -428,11 +497,64 @@ export default function QualityPage() {
                 <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                 <span>Computing distribution histograms...</span>
               </div>
-            ) : distData ? (
+            ) : distError ? (
+              <div className="h-64 flex flex-col items-center justify-center p-6 text-center space-y-3">
+                <AlertTriangle className="w-6 h-6 text-rose-400" />
+                <div className="text-xs text-rose-300 font-mono">{distError}</div>
+                <button
+                  onClick={() => fetchColumnDistribution(selectedCol)}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white border border-zinc-700 transition-colors"
+                >
+                  Retry Distribution Profiling
+                </button>
+              </div>
+            ) : distData?.type === "empty" ? (
+              <div className="h-64 flex flex-col items-center justify-center p-6 text-center space-y-2 text-zinc-500">
+                <AlertCircle className="w-6 h-6 text-zinc-600" />
+                <div className="text-xs font-mono">No non-null observations in column &apos;{selectedCol}&apos;.</div>
+              </div>
+            ) : distData?.type === "categorical" ? (
               <div className="space-y-4">
                 <div className="h-52 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={distData.bins}>
+                    <BarChart data={distData.categories || []}>
+                      <CartesianGrid strokeDasharray="2 2" stroke="#27272A" vertical={false} />
+                      <XAxis dataKey="category" stroke="#71717A" fontSize={10} interval={0} angle={-15} textAnchor="end" />
+                      <YAxis stroke="#71717A" fontSize={11} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#101014",
+                          border: "1px solid #27272A",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          color: "#FFFFFF",
+                        }}
+                      />
+                      <Bar dataKey="count" fill="#3B82F6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/80 text-xs">
+                  <div>
+                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Distinct Categories</div>
+                    <div className="font-bold text-white">{distData.unique ?? distData.categories?.length ?? "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Top Category</div>
+                    <div className="font-bold text-blue-400 truncate">{distData.categories?.[0]?.category ?? "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Top Category Count</div>
+                    <div className="font-bold text-white">{distData.categories?.[0]?.count ?? "N/A"}</div>
+                  </div>
+                </div>
+              </div>
+            ) : distData?.type === "numeric" ? (
+              <div className="space-y-4">
+                <div className="h-52 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={distData.bins || []}>
                       <CartesianGrid strokeDasharray="2 2" stroke="#27272A" vertical={false} />
                       <XAxis dataKey="bin" stroke="#71717A" fontSize={10} />
                       <YAxis stroke="#71717A" fontSize={11} />
@@ -450,26 +572,24 @@ export default function QualityPage() {
                   </ResponsiveContainer>
                 </div>
 
-                {distData.stats && (
-                  <div className="grid grid-cols-4 gap-2 text-center p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/80 text-xs">
-                    <div>
-                      <div className="text-zinc-500 text-[10px] uppercase font-mono">Mean</div>
-                      <div className="font-bold text-white">{distData.stats.mean?.toFixed(2) ?? "N/A"}</div>
-                    </div>
-                    <div>
-                      <div className="text-zinc-500 text-[10px] uppercase font-mono">Std Dev</div>
-                      <div className="font-bold text-white">{distData.stats.std?.toFixed(2) ?? "N/A"}</div>
-                    </div>
-                    <div>
-                      <div className="text-zinc-500 text-[10px] uppercase font-mono">Min</div>
-                      <div className="font-bold text-white">{distData.stats.min?.toFixed(2) ?? "N/A"}</div>
-                    </div>
-                    <div>
-                      <div className="text-zinc-500 text-[10px] uppercase font-mono">Max</div>
-                      <div className="font-bold text-white">{distData.stats.max?.toFixed(2) ?? "N/A"}</div>
-                    </div>
+                <div className="grid grid-cols-4 gap-2 text-center p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/80 text-xs">
+                  <div>
+                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Mean</div>
+                    <div className="font-bold text-white">{distData.mean !== undefined ? distData.mean.toFixed(2) : "N/A"}</div>
                   </div>
-                )}
+                  <div>
+                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Median</div>
+                    <div className="font-bold text-white">{distData.median !== undefined ? distData.median.toFixed(2) : "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Min</div>
+                    <div className="font-bold text-white">{distData.min !== undefined ? distData.min.toFixed(2) : "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Max</div>
+                    <div className="font-bold text-white">{distData.max !== undefined ? distData.max.toFixed(2) : "N/A"}</div>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="h-64 flex items-center justify-center text-xs font-mono text-zinc-500">

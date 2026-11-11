@@ -18,7 +18,6 @@ import {
   Trash2,
   RefreshCw
 } from "lucide-react";
-import { ThemeToggle } from "./theme-toggle";
 import { api, getWorkspaceId } from "@/lib/api";
 
 const NAV_ITEMS = [
@@ -102,7 +101,7 @@ export function Navigation() {
                 OpenDataLens
               </span>
               <span className="text-[10px] uppercase font-mono font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                PRO
+                BETA
               </span>
             </div>
           </Link>
@@ -131,7 +130,7 @@ export function Navigation() {
         </div>
 
         {/* Right Station Controls */}
-        <div className="hidden md:flex items-center space-x-2.5">
+        <div className="hidden lg:flex items-center space-x-2.5">
           {/* Real Health Badge */}
           <div
             className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono border transition-colors ${
@@ -185,12 +184,10 @@ export function Navigation() {
             <Sparkles className="w-3.5 h-3.5" />
             <span>Launch Studio</span>
           </Link>
-          <ThemeToggle />
         </div>
 
         {/* Mobile Menu Button */}
         <div className="flex lg:hidden items-center space-x-2">
-          <ThemeToggle />
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-zinc-300 hover:text-white"

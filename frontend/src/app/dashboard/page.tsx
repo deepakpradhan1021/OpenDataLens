@@ -23,6 +23,16 @@ import { api } from "@/lib/api";
 import { EmptyState } from "@/components/empty-state";
 import { RetroDock } from "@/components/retro-dock";
 
+function formatScore(score: number | null | undefined, metricName?: string, problemType?: string) {
+  if (score === null || score === undefined) return "N/A";
+  const m = (metricName || "").toLowerCase();
+  const isReg = problemType === "regression" || m.includes("r²") || m.includes("r2") || m.includes("mae") || m.includes("rmse") || m.includes("mse");
+  if (isReg) {
+    return score.toFixed(4);
+  }
+  return score <= 1.0 ? `${(score * 100).toFixed(2)}%` : score.toFixed(4);
+}
+
 export default function DashboardPage() {
   const [activeDataset, setActiveDataset] = useState<any>(null);
   const [quality, setQuality] = useState<any>(null);
@@ -150,7 +160,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="text-[11px] font-mono text-emerald-400">
-                  Ready for 80/20 train split
+                  {comparison?.ml_meta?.test_size
+                    ? `Configured ${Math.round((1 - comparison.ml_meta.test_size) * 100)}/${Math.round(comparison.ml_meta.test_size * 100)} train/test split`
+                    : "Train/test split configurable in Studio (80/20 default)"}
                 </div>
               </div>
 
@@ -189,7 +201,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-xs text-zinc-400 pt-0.5">
                     {comparison?.champion
-                      ? `Score: ${(comparison.champion.score * 100).toFixed(1)}%`
+                      ? `Score: ${formatScore(comparison.champion.score, comparison.champion.metric, comparison.problem_type)}`
                       : "Ready to train"}
                   </div>
                 </div>
@@ -220,7 +232,7 @@ export default function DashboardPage() {
                     <div className="text-xs text-zinc-400 font-mono">
                       Metric: {comparison.champion.metric} ={" "}
                       <span className="font-bold text-emerald-400">
-                        {(comparison.champion.score * 100).toFixed(2)}%
+                        {formatScore(comparison.champion.score, comparison.champion.metric, comparison.problem_type)}
                       </span>{" "}
                       across {comparison.scoreboard?.length || 0} trained algorithms
                     </div>

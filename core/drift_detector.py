@@ -29,7 +29,7 @@ def calculate_psi(
     ref_clean = reference.dropna()
     tgt_clean = target.dropna()
 
-    if len(ref_clean) < 10 or len(tgt_clean) < 5:
+    if len(ref_clean) < 10 or len(tgt_clean) < 10:
         return 0.0
 
     # Handle constant or zero-variance reference
@@ -132,12 +132,42 @@ def detect_dataset_drift(
     added_cols = sorted(list(tgt_cols - ref_cols))
     common_cols = [c for c in reference_df.columns if c in tgt_cols]
 
+    # Check for insufficient sample size
+    if len(reference_df) < 10 or len(target_df) < 10:
+        return {
+            "overall_status": "insufficient_data",
+            "badge_label": "Insufficient Data",
+            "summary": (
+                f"Statistical drift analysis is unreliable with small sample sizes "
+                f"(reference: {len(reference_df)} rows, target: {len(target_df)} rows). "
+                f"A minimum of 10 samples per partition is required for credible PSI and KS estimation."
+            ),
+            "mean_psi": 0.0,
+            "drifted_features_count": 0,
+            "warning_features_count": 0,
+            "stable_features_count": 0,
+            "insufficient_data_count": len(common_cols),
+            "total_features_evaluated": len(common_cols),
+            "reference_rows": len(reference_df),
+            "target_rows": len(target_df),
+            "schema_changes": {
+                "removed_columns": removed_cols,
+                "added_columns": added_cols,
+                "common_columns_count": len(common_cols),
+                "type_mismatches": []
+            },
+            "missing_value_shifts": {},
+            "features": []
+        }
+
     missing_shifts: Dict[str, Dict[str, float]] = {}
     feature_metrics: List[Dict[str, Any]] = []
+    type_mismatches: List[Dict[str, str]] = []
 
     psi_values: List[float] = []
     drifted_count = 0
     warning_count = 0
+    insufficient_count = 0
 
     for col in common_cols:
         r_col = reference_df[col]
@@ -154,7 +184,45 @@ def detect_dataset_drift(
                 "diff_pct": missing_diff
             }
 
-        is_numeric = pd.api.types.is_numeric_dtype(r_col) and pd.api.types.is_numeric_dtype(t_col)
+        r_is_num = pd.api.types.is_numeric_dtype(r_col)
+        t_is_num = pd.api.types.is_numeric_dtype(t_col)
+
+        # Detect data type / schema mismatch
+        if r_is_num != t_is_num:
+            type_mismatches.append({
+                "column": col,
+                "reference_type": "numeric" if r_is_num else "categorical",
+                "target_type": "numeric" if t_is_num else "categorical"
+            })
+            drifted_count += 1
+            feature_metrics.append({
+                "feature": col,
+                "type": "schema_mismatch",
+                "psi": 1.0,
+                "status": "drifted",
+                "reference_stats": {"type": str(r_col.dtype), "missing_pct": r_missing},
+                "target_stats": {"type": str(t_col.dtype), "missing_pct": t_missing},
+                "recommendation": f"Critical schema shift: data type changed from {r_col.dtype} to {t_col.dtype}."
+            })
+            psi_values.append(1.0)
+            continue
+
+        is_numeric = r_is_num and t_is_num
+        r_valid_count = len(r_col.dropna())
+        t_valid_count = len(t_col.dropna())
+
+        if r_valid_count < 10 or t_valid_count < 10:
+            insufficient_count += 1
+            feature_metrics.append({
+                "feature": col,
+                "type": "numeric" if is_numeric else "categorical",
+                "psi": 0.0,
+                "status": "insufficient_data",
+                "reference_stats": {"count": r_valid_count, "missing_pct": r_missing},
+                "target_stats": {"count": t_valid_count, "missing_pct": t_missing},
+                "recommendation": "Insufficient non-null observations (< 10) for reliable distribution comparison."
+            })
+            continue
 
         if is_numeric:
             psi = calculate_psi(r_col, t_col)
@@ -219,16 +287,16 @@ def detect_dataset_drift(
             psi_values.append(psi)
 
     # Sort features by PSI descending
-    feature_metrics.sort(key=lambda x: x["psi"], reverse=True)
+    feature_metrics.sort(key=lambda x: x.get("psi", 0.0), reverse=True)
 
     mean_psi = float(round(np.mean(psi_values), 4)) if psi_values else 0.0
 
-    if drifted_count >= max(1, int(len(common_cols) * 0.3)) or mean_psi >= PSI_WARNING_THRESHOLD:
+    if type_mismatches or drifted_count >= max(1, int(len(common_cols) * 0.3)) or mean_psi >= PSI_WARNING_THRESHOLD:
         overall_status = "significant_drift"
         badge_label = "Significant Drift"
         summary = (
             f"Detected significant drift across {drifted_count} features (mean PSI: {mean_psi:.2f}). "
-            "Distribution changes may impact model accuracy; evaluate model performance on fresh target ground truth."
+            f"{len(type_mismatches)} schema type changes flagged. Distribution changes may impact model accuracy."
         )
     elif warning_count > 0 or mean_psi >= PSI_STABLE_THRESHOLD:
         overall_status = "moderate_drift"
@@ -237,6 +305,10 @@ def detect_dataset_drift(
             f"Moderate distribution shifts detected in {warning_count} features (mean PSI: {mean_psi:.2f}). "
             "Feature behavior has evolved but is within acceptable variance. Recommend periodic monitoring."
         )
+    elif insufficient_count > 0 and len(feature_metrics) == insufficient_count:
+        overall_status = "insufficient_data"
+        badge_label = "Insufficient Data"
+        summary = "All evaluated features had insufficient valid sample sizes (< 10) to determine drift reliably."
     else:
         overall_status = "stable"
         badge_label = "Stable Baseline"
@@ -259,7 +331,8 @@ def detect_dataset_drift(
         "schema_changes": {
             "removed_columns": removed_cols,
             "added_columns": added_cols,
-            "common_columns_count": len(common_cols)
+            "common_columns_count": len(common_cols),
+            "type_mismatches": type_mismatches
         },
         "missing_value_shifts": missing_shifts,
         "features": feature_metrics
