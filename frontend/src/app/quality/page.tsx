@@ -33,6 +33,7 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { QualityAnalysisResponse, CopilotResponse, ColumnDistributionResponse } from "@/lib/types";
+import { RetroDock } from "@/components/retro-dock";
 
 export default function QualityPage() {
   const [quality, setQuality] = useState<QualityAnalysisResponse | null>(null);
@@ -191,7 +192,7 @@ export default function QualityPage() {
   const outlierEntries = quality.outliers ? Object.entries(quality.outliers) : [];
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header Breadcrumb */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
@@ -204,7 +205,7 @@ export default function QualityPage() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center space-x-3">
               <span>Data Quality Intelligence</span>
             </h1>
-            <p className="text-xs sm:text-sm text-zinc-400">
+            <p className="text-xs sm:text-sm text-zinc-400 font-sans">
               Audit completeness, IQR numerical outliers, target leakage risks, and high-cardinality flags.
             </p>
           </div>
@@ -212,7 +213,7 @@ export default function QualityPage() {
           <div className="flex items-center space-x-3">
             <Link
               href="/studio"
-              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm shadow-blue-600/30 transition-all active:scale-95"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow-sm shadow-blue-600/30 transition-all active:scale-95"
             >
               <Cpu className="w-3.5 h-3.5" />
               <span>Proceed to ML Studio</span>
@@ -224,54 +225,54 @@ export default function QualityPage() {
         {/* Top 4 KPI Health Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-5 rounded-2xl border border-zinc-800 bg-[#101014] space-y-2">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
+            <div className="flex items-center justify-between text-zinc-400 text-xs font-sans font-medium">
               <span>Completeness Score</span>
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-3xl font-bold font-mono text-white">
               {quality.overview.completeness_score}%
             </div>
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-zinc-500 font-sans">
               {quality.overview.total_missing_cells.toLocaleString()} missing cells out of{" "}
               {quality.overview.total_cells.toLocaleString()}
             </div>
           </div>
 
           <div className="p-5 rounded-2xl border border-zinc-800 bg-[#101014] space-y-2">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
+            <div className="flex items-center justify-between text-zinc-400 text-xs font-sans font-medium">
               <span>Duplicate Rows</span>
               <TableIcon className="w-4 h-4 text-blue-400" />
             </div>
             <div className="text-3xl font-bold font-mono text-white">
               {quality.overview.duplicate_rows}
             </div>
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-zinc-500 font-sans">
               {quality.overview.duplicate_pct}% duplication rate
             </div>
           </div>
 
           <div className="p-5 rounded-2xl border border-zinc-800 bg-[#101014] space-y-2">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
+            <div className="flex items-center justify-between text-zinc-400 text-xs font-sans font-medium">
               <span>Features Audited</span>
               <Layers className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="text-3xl font-bold font-mono text-white">
               {quality.overview.total_cols}
             </div>
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-zinc-500 font-sans">
               {quality.column_types.numeric.length} numeric, {quality.column_types.categorical.length} categorical
             </div>
           </div>
 
           <div className="p-5 rounded-2xl border border-zinc-800 bg-[#101014] space-y-2">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
+            <div className="flex items-center justify-between text-zinc-400 text-xs font-sans font-medium">
               <span>Memory Footprint</span>
               <Cpu className="w-4 h-4 text-purple-400" />
             </div>
             <div className="text-3xl font-bold font-mono text-white">
-              {quality.overview.memory_mb} <span className="text-sm font-normal text-zinc-400">MB</span>
+              {quality.overview.memory_mb} <span className="text-sm font-normal text-zinc-400 font-sans">MB</span>
             </div>
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-zinc-500 font-sans">
               {quality.overview.total_rows.toLocaleString()} memory-resident records
             </div>
           </div>
@@ -285,8 +286,8 @@ export default function QualityPage() {
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-white">AI Dataset Copilot</h3>
-                <p className="text-xs text-zinc-400">Deterministic workspace intelligence based on verified audit metrics</p>
+                <h3 className="font-semibold text-sm text-white font-sans">AI Dataset Copilot</h3>
+                <p className="text-xs text-zinc-400 font-sans">Deterministic workspace intelligence based on verified audit metrics</p>
               </div>
             </div>
           </div>
@@ -302,7 +303,7 @@ export default function QualityPage() {
               <button
                 key={prompt}
                 onClick={() => handleAskCopilot(prompt)}
-                className="px-3 py-1 rounded-lg border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-xs text-zinc-300 hover:text-white transition-colors"
+                className="px-3 py-1 rounded-lg border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-xs font-sans font-medium text-zinc-300 hover:text-white transition-colors"
               >
                 {prompt}
               </button>
@@ -317,12 +318,12 @@ export default function QualityPage() {
               onChange={(e) => setCopilotQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAskCopilot()}
               placeholder="Ask Copilot a question about this dataset (e.g. 'Explain my dataset' or 'What should I clean first?')..."
-              className="flex-1 p-2.5 rounded-xl border border-zinc-700 bg-zinc-950/80 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+              className="flex-1 p-2.5 rounded-xl border border-zinc-700 bg-zinc-950/80 text-xs font-sans text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500"
             />
             <button
               onClick={() => handleAskCopilot()}
               disabled={copilotLoading}
-              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50"
             >
               {copilotLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               <span>Ask</span>
@@ -332,10 +333,10 @@ export default function QualityPage() {
           {/* Copilot Error Alert */}
           {copilotError && (
             <div className="mt-2 p-3 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs text-rose-300 flex items-center justify-between">
-              <span>{copilotError}</span>
+              <span className="font-sans">{copilotError}</span>
               <button
                 onClick={() => handleAskCopilot()}
-                className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-white font-semibold transition-colors"
+                className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-white font-medium text-xs transition-colors"
               >
                 Retry
               </button>
@@ -348,7 +349,7 @@ export default function QualityPage() {
               <div className="font-semibold text-blue-300 text-[11px] uppercase tracking-wider font-mono">
                 Copilot Analysis ({copilotResponse.intent})
               </div>
-              <div className="whitespace-pre-line leading-relaxed text-zinc-100">
+              <div className="whitespace-pre-line leading-relaxed text-zinc-100 font-sans text-xs">
                 {copilotResponse.answer}
               </div>
             </div>
@@ -361,7 +362,7 @@ export default function QualityPage() {
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div className="flex items-center space-x-2">
                 <Info className="w-4 h-4 text-blue-400" />
-                <h3 className="font-semibold text-sm text-white">
+                <h3 className="font-semibold text-sm text-white font-sans">
                   Automated Quality Recommendations ({quality.recommendations.length})
                 </h3>
               </div>
@@ -375,9 +376,9 @@ export default function QualityPage() {
                   className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/30 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-white">{rec.title}</span>
+                    <span className="font-semibold text-xs text-white font-sans">{rec.title}</span>
                     <span
-                      className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
+                      className={`text-[10px] font-mono font-medium uppercase px-2 py-0.5 rounded-full ${
                         rec.type === "danger"
                           ? "bg-red-500/10 text-red-400 border border-red-500/20"
                           : rec.type === "warning"
@@ -388,7 +389,7 @@ export default function QualityPage() {
                       {rec.type}
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-400 leading-relaxed">{rec.description}</p>
+                  <p className="text-xs text-zinc-400 leading-relaxed font-sans">{rec.description}</p>
                   {rec.action && (
                     <div className="text-[11px] font-mono text-emerald-400 pt-1">
                       Action: {rec.action}
@@ -599,6 +600,9 @@ export default function QualityPage() {
           </div>
         </div>
       </div>
+
+      {/* Floating Command Dock */}
+      <RetroDock />
     </div>
   );
 }

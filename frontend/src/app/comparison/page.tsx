@@ -42,6 +42,7 @@ import {
   ExplainabilityResponse,
   ExperimentRun,
 } from "@/lib/types";
+import { RetroDock } from "@/components/retro-dock";
 
 function formatScoreValue(score: number | null | undefined, metricName?: string, problemType?: string): string {
   if (score === null || score === undefined || typeof score !== "number") return "N/A";
@@ -179,7 +180,7 @@ export default function ComparisonPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header Breadcrumb */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
@@ -689,6 +690,9 @@ export default function ComparisonPage() {
           </div>
         )}
       </div>
+
+      {/* Floating Command Dock */}
+      <RetroDock />
     </div>
   );
 }

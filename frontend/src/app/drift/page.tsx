@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { DriftAnalysisResponse } from "@/lib/types";
+import { RetroDock } from "@/components/retro-dock";
 
 export default function DriftPage() {
   const [loading, setLoading] = useState(false);
@@ -67,7 +68,7 @@ export default function DriftPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 py-8 px-4 sm:px-6 lg:px-8 pb-28 sm:pb-32">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header Breadcrumb */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-6">
@@ -313,6 +314,9 @@ export default function DriftPage() {
           </div>
         )}
       </div>
+
+      {/* Floating Command Dock */}
+      <RetroDock />
     </div>
   );
 }

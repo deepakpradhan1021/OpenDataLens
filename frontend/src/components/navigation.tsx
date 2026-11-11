@@ -91,8 +91,8 @@ export function Navigation() {
     <header className="sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-[#09090B]/85 backdrop-blur-xl transition-all duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo & Nav */}
-        <div className="flex items-center space-x-6 lg:space-x-8">
-          <Link href="/" className="flex items-center space-x-2.5 group">
+        <div className="flex items-center space-x-4 xl:space-x-8">
+          <Link href="/" className="flex items-center space-x-2.5 group shrink-0">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-indigo-600 to-violet-600 flex items-center justify-center shadow-sm shadow-blue-500/25 group-hover:scale-105 transition-transform duration-200">
               <Layers className="w-4 h-4 text-white" />
             </div>
@@ -100,14 +100,14 @@ export function Navigation() {
               <span className="font-semibold text-base tracking-tight text-zinc-100 group-hover:text-white transition-colors">
                 OpenDataLens
               </span>
-              <span className="text-[10px] uppercase font-mono font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <span className="text-[10px] uppercase font-mono font-medium px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 tracking-wider">
                 BETA
               </span>
             </div>
           </Link>
 
           {/* Desktop Nav Items */}
-          <nav className="hidden lg:flex items-center space-x-1">
+          <nav className="hidden lg:flex items-center space-x-1 xl:space-x-1.5">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -115,14 +115,14 @@ export function Navigation() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
+                  className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all duration-150 ${
                     isActive
                       ? "bg-zinc-800/90 text-white shadow-sm border border-zinc-700/60 font-semibold"
                       : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40"
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? "text-blue-400" : "text-zinc-500"}`} />
-                  <span>{item.name}</span>
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-blue-400" : "text-zinc-500"}`} />
+                  <span className="whitespace-nowrap">{item.name}</span>
                 </Link>
               );
             })}
@@ -130,10 +130,10 @@ export function Navigation() {
         </div>
 
         {/* Right Station Controls */}
-        <div className="hidden lg:flex items-center space-x-2.5">
+        <div className="hidden lg:flex items-center space-x-2.5 shrink-0">
           {/* Real Health Badge */}
           <div
-            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono border transition-colors ${
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono border whitespace-nowrap shrink-0 transition-colors ${
               apiHealth === "connected"
                 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                 : apiHealth === "checking"
@@ -151,18 +151,18 @@ export function Navigation() {
                   : "bg-rose-400"
               }`}
             />
-            <span>{apiHealth === "connected" ? "API Online" : apiHealth === "checking" ? "Checking..." : "API Offline"}</span>
+            <span className="whitespace-nowrap">{apiHealth === "connected" ? "API Online" : apiHealth === "checking" ? "Checking..." : "API Offline"}</span>
           </div>
 
           {/* Active Dataset Pill */}
           {activeDatasetName && (
             <Link
               href="/explorer"
-              className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono transition-colors hover:bg-blue-500/15"
+              className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono whitespace-nowrap shrink-0 transition-colors hover:bg-blue-500/15"
               title="Click to view active dataset"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              <span className="max-w-[140px] truncate">{activeDatasetName}</span>
+              <span className="max-w-[130px] truncate">{activeDatasetName}</span>
             </Link>
           )}
 
@@ -170,7 +170,7 @@ export function Navigation() {
           <button
             onClick={handleClearWorkspace}
             disabled={clearing}
-            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs transition-colors"
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-medium whitespace-nowrap shrink-0 transition-colors"
             title="Clear current workspace and start fresh"
           >
             <Trash2 className="w-3 h-3 text-zinc-500" />
@@ -179,10 +179,10 @@ export function Navigation() {
 
           <Link
             href="/studio"
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-600/30 transition-all duration-150 active:scale-95"
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-600/30 whitespace-nowrap shrink-0 transition-all duration-150 active:scale-95"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Launch Studio</span>
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span className="whitespace-nowrap">Launch Studio</span>
           </Link>
         </div>
 

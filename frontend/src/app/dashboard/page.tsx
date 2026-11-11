@@ -61,7 +61,7 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
@@ -78,14 +78,14 @@ export default function DashboardPage() {
           <div className="flex items-center space-x-3">
             <Link
               href="/explorer"
-              className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-semibold transition-all"
+              className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-medium transition-all"
             >
               <Database className="w-3.5 h-3.5 text-zinc-400" />
               <span>Switch Dataset</span>
             </Link>
             <Link
               href="/studio"
-              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm shadow-blue-600/30 transition-all"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow-sm shadow-blue-600/30 transition-all"
             >
               <Cpu className="w-3.5 h-3.5" />
               <span>New Training Run</span>
@@ -132,14 +132,14 @@ export default function DashboardPage() {
                   <Database className="w-4 h-4 text-blue-400" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-white truncate">
+                  <div className="text-xl font-semibold tracking-tight text-white truncate">
                     {activeDataset.metadata.name}
                   </div>
-                  <div className="text-xs text-zinc-400 pt-0.5">
-                    Source: {activeDataset.metadata.source?.toUpperCase() || "CURATED"}
+                  <div className="text-xs text-zinc-400 font-normal pt-1">
+                    Source: <span className="text-zinc-300 font-medium">{activeDataset.metadata.source?.toUpperCase() || "CURATED"}</span>
                   </div>
                 </div>
-                <div className="text-[11px] font-mono text-zinc-500">
+                <div className="text-[11px] font-mono text-zinc-500 font-medium">
                   Memory: {activeDataset.memory_mb.toFixed(2)} MB
                 </div>
               </div>
@@ -151,15 +151,15 @@ export default function DashboardPage() {
                   <Layers className="w-4 h-4 text-indigo-400" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-white">
+                  <div className="text-xl font-semibold font-mono tracking-tight text-white">
                     {activeDataset.total_rows.toLocaleString()} × {activeDataset.total_cols}
                   </div>
-                  <div className="text-xs text-zinc-400 pt-0.5">
+                  <div className="text-xs text-zinc-400 font-normal pt-1">
                     {activeDataset.columns.filter((c: any) => c.dtype.includes("int") || c.dtype.includes("float")).length} numeric,{" "}
                     {activeDataset.columns.filter((c: any) => !c.dtype.includes("int") && !c.dtype.includes("float")).length} categorical
                   </div>
                 </div>
-                <div className="text-[11px] font-mono text-emerald-400">
+                <div className="text-[11px] font-mono text-emerald-400 font-medium">
                   {comparison?.ml_meta?.test_size
                     ? `Configured ${Math.round((1 - comparison.ml_meta.test_size) * 100)}/${Math.round(comparison.ml_meta.test_size * 100)} train/test split`
                     : "Train/test split configurable in Studio (80/20 default)"}
@@ -173,16 +173,16 @@ export default function DashboardPage() {
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-emerald-400">
+                  <div className="text-xl font-semibold font-mono tracking-tight text-emerald-400">
                     {quality ? `${quality.overview.completeness_score.toFixed(1)}%` : "Pending"}
                   </div>
-                  <div className="text-xs text-zinc-400 pt-0.5">
+                  <div className="text-xs text-zinc-400 font-normal pt-1">
                     {quality ? `${quality.overview.duplicate_rows} duplicate rows` : "Awaiting audit"}
                   </div>
                 </div>
                 <Link
                   href="/quality"
-                  className="text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center space-x-1"
+                  className="text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center space-x-1 transition-colors"
                 >
                   <span>View Quality Audit</span>
                   <ArrowRight className="w-3 h-3" />
@@ -196,18 +196,18 @@ export default function DashboardPage() {
                   <Cpu className="w-4 h-4 text-violet-400" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-white truncate">
+                  <div className="text-xl font-semibold tracking-tight text-white truncate">
                     {comparison?.champion ? comparison.champion.name : "0 Models"}
                   </div>
-                  <div className="text-xs text-zinc-400 pt-0.5">
+                  <div className="text-xs text-zinc-400 font-normal pt-1">
                     {comparison?.champion
-                      ? `Score: ${formatScore(comparison.champion.score, comparison.champion.metric, comparison.problem_type)}`
+                      ? <>Score: <span className="font-mono text-zinc-200 font-medium">{formatScore(comparison.champion.score, comparison.champion.metric, comparison.problem_type)}</span></>
                       : "Ready to train"}
                   </div>
                 </div>
                 <Link
                   href="/studio"
-                  className="text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center space-x-1"
+                  className="text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center space-x-1 transition-colors"
                 >
                   <span>Open ML Studio</span>
                   <ArrowRight className="w-3 h-3" />
@@ -330,22 +330,22 @@ export default function DashboardPage() {
 
             {/* Live Event Stream Log */}
             <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-xs font-mono font-semibold text-zinc-400 uppercase">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-[11px] font-mono font-medium text-zinc-400 uppercase tracking-wider">
                 <div className="flex items-center space-x-2">
                   <Terminal className="w-3.5 h-3.5 text-blue-400" />
                   <span>Session Telemetry Log</span>
                 </div>
-                <span className="text-emerald-400 flex items-center space-x-1">
+                <span className="text-emerald-400 flex items-center space-x-1 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   <span>Active In-Memory Bus</span>
                 </span>
               </div>
-              <div className="p-3 rounded-xl bg-zinc-950 font-mono text-xs text-zinc-400 space-y-1">
+              <div className="p-3.5 rounded-xl bg-zinc-950 font-mono text-xs text-zinc-400 space-y-1.5 leading-relaxed">
                 <div>[SYSTEM] FastAPI Microservice initialized on port 8000.</div>
                 <div>[WORKSPACE] In-memory session store ready with thread-safe RLock.</div>
                 {activeDataset && (
                   <div>
-                    [DATASET] `{activeDataset.metadata.name}` mounted with {activeDataset.total_rows.toLocaleString()} rows and {activeDataset.total_cols} columns.
+                    [DATASET] <span className="text-zinc-200">`{activeDataset.metadata.name}`</span> mounted with {activeDataset.total_rows.toLocaleString()} rows and {activeDataset.total_cols} columns.
                   </div>
                 )}
                 {quality && (
@@ -355,7 +355,7 @@ export default function DashboardPage() {
                 )}
                 {comparison?.champion && (
                   <div className="text-blue-400">
-                    [EVALUATION] Champion model: `{comparison.champion.name}` ({comparison.champion.metric} = {(comparison.champion.score * 100).toFixed(1)}%).
+                    [EVALUATION] Champion model: <span className="text-zinc-200">`{comparison.champion.name}`</span> ({comparison.champion.metric} = {formatScore(comparison.champion.score, comparison.champion.metric, comparison.problem_type)}).
                   </div>
                 )}
               </div>

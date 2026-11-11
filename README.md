@@ -170,7 +170,7 @@ OpenDataLens/
 │   ├── tests/                      # Playwright end-to-end test suite
 │   ├── package.json                # Frontend dependencies
 │   ├── .eslintrc.json              # Next.js Core Web Vitals ESLint config
-│   └── tailwind.config.ts          # Modern dark-mode theme configuration
+│   └── tailwind.config.ts          # Modern dark-mode theme with Geist Sans & Geist Mono typography
 ├── tests/                          # Backend Pytest test suite (75 tests)
 └── .github/
     ├── workflows/

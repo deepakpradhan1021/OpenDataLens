@@ -127,7 +127,7 @@ export default function ExplorerPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
@@ -234,11 +234,11 @@ export default function ExplorerPage() {
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-semibold uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                        <span className="text-[10px] font-mono font-medium uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60 tracking-wider">
                           {item.task}
                         </span>
                         {isCurrentActive && (
-                          <span className="text-[10px] font-semibold text-emerald-400 flex items-center space-x-1">
+                          <span className="text-[10px] font-medium text-emerald-400 flex items-center space-x-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             <span>Active in Memory</span>
                           </span>
@@ -246,20 +246,20 @@ export default function ExplorerPage() {
                       </div>
 
                       <div className="space-y-1.5">
-                        <h3 className="font-semibold text-base text-white">{item.name}</h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
+                        <h3 className="font-semibold text-base text-white tracking-tight">{item.name}</h3>
+                        <p className="text-xs text-zinc-400 font-normal leading-relaxed line-clamp-2">
                           {item.description}
                         </p>
                       </div>
 
                       <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between text-xs">
-                        <span className="font-mono text-zinc-500">
+                        <span className="font-mono text-xs text-zinc-400 font-medium">
                           {item.rows.toLocaleString()} rows • {item.cols} cols
                         </span>
                         <button
                           onClick={() => handleLoadCurated(item.id)}
                           disabled={loading}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center space-x-1 ${
                             isCurrentActive
                               ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
                               : "bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-600/25"

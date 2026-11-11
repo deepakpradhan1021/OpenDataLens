@@ -227,7 +227,7 @@ export default function StudioPage() {
   const currentModels = problemType === "classification" ? CLASSIFICATION_MODELS : REGRESSION_MODELS;
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
@@ -245,7 +245,7 @@ export default function StudioPage() {
             <button
               onClick={handleStartTraining}
               disabled={isTraining}
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md shadow-blue-600/30 flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-75"
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md shadow-blue-600/30 flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-75"
             >
               {isTraining ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
               <span>{isTraining ? "Training Pipelines..." : "Start Training Run"}</span>

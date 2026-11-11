@@ -62,8 +62,11 @@
     @apply border-border;
   }
   body {
-    @apply bg-[#09090B] text-zinc-100 antialiased selection:bg-blue-600 selection:text-white;
+    @apply bg-[#09090B] text-zinc-100 antialiased selection:bg-blue-600 selection:text-white font-sans;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
