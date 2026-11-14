@@ -5,7 +5,7 @@
 [![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20App-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://opendatalens-app.vercel.app)
 [![Render Backend](https://img.shields.io/badge/Render-Live%20API-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://opendatalens.onrender.com/docs)
 [![CI Pipeline](https://img.shields.io/github/actions/workflow/status/deepakpradhan1021/OpenDataLens/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI%20Pipeline)](https://github.com/deepakpradhan1021/OpenDataLens/actions/workflows/ci.yml)
-[![Pytest Suite](https://img.shields.io/badge/Pytest-75%20Passed%20(100%25)-10B981?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
+[![Pytest Suite](https://img.shields.io/badge/Pytest-86%20Passed%20(100%25)-10B981?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
 **A portfolio-grade machine learning workbench and automated model evaluation platform.**  
@@ -26,13 +26,18 @@
 
 | Capability | Technical Implementation | Highlights |
 | :--- | :--- | :--- |
+| **Emerald Dual-Theme Engine** | Tailwind CSS semantic tokens with `next-themes` | Off-white `#F8FAFC` light default, deep charcoal `#070A0F` dark mode, Emerald brand accent (`#10B981`) |
+| **Multi-Format Ingestion** | `pandas`, `openpyxl`, `pypdf`, and custom SQL parser | Ingests CSV, TSV, Excel `.xlsx`/`.xls`, JSON, JSONL, PDF tabular text, and SQL dump files up to 25MB |
+| **Interactive Data Cleaning Studio** | `core/cleaner.py` with 8-checkpoint memory bound in `SessionStore` | Missing value imputation, deduplication, type casting, outlier clipping with live Undo / Redo stack |
+| **Multi-Chart Visual Analytics** | Recharts responsive visualization engine (`/visualize`) | Dynamic Bar, Line, Area, Scatter, and Donut charts with Sum/Mean/Count aggregations & schema presets |
+| **Multi-Sheet Excel Dossiers** | OpenPyXL multi-tab serialization (`core/report_generator.py`) | 4-sheet `.xlsx` workbook (Overview, Data Dictionary, Quality Audit, Model Scoreboard, Sample Records) |
+| **Conversational AI Analyst** | Grounded deterministic reasoning engine + floating UI | Context-aware responses on quality, missing values, outliers, models, and transformations |
 | **Workspace Session Isolation** | Cryptographic UUIDv4 tokens via `SessionStore` & TTL eviction | Multi-tenant session separation; zero cross-user state leakage; 1-click workspace clearing |
 | **Explainable AI (XAI)** | `sklearn.inspection.permutation_importance` on held-out test split | Permutation Feature Importance, native model weights, single-sample prediction attribution |
 | **On-Demand Data Drift** | Two-sample Kolmogorov-Smirnov (`scipy.stats.ks_2samp`) & PSI | Population Stability Index (PSI), distribution shift charts, categorical Total Variation Distance (TVD) |
 | **Leak-Free ML Studio** | Stratified K-Fold / K-Fold (3, 5, 10 folds) with `ColumnTransformer` | Zero data leakage: standard/robust/minmax scalers fitted exclusively on training folds |
 | **Quality Intelligence** | Interquartile Range (IQR) & 3-sigma z-score outlier detection | Target leakage flags (\|r\| ≥ 0.95), high-cardinality warnings, completeness scoring |
-| **AI Dataset Copilot** | Deterministic heuristic reasoning engine | Grounded answers on quality, missing values, and model champions with 0 latency & 0 external API cost |
-| **Artifact Export Bay** | Scikit-Learn `.joblib` serialization, HTML dossiers, JSON reports | Downloadable model binaries and standalone shareable audit dossiers |
+| **Artifact Export Bay** | Scikit-Learn `.joblib` serialization, HTML dossiers, JSON reports | Downloadable model binaries, project state backups, and standalone shareable audit dossiers |
 
 ---
 

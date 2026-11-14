@@ -12,15 +12,14 @@ import {
   Shield,
   Layers,
   ArrowRight,
-  Loader2,
   Check,
   X,
   Terminal,
   Sparkles,
 } from "lucide-react";
+import { Ring } from "@/components/loading-ui/ring";
 import { api, categorizeApiError } from "@/lib/api";
 import { TargetCandidatesResponse, JobStatusResponse } from "@/lib/types";
-import { EmptyState } from "@/components/empty-state";
 import { RetroDock } from "@/components/retro-dock";
 
 const CLASSIFICATION_MODELS = [
@@ -201,10 +200,10 @@ export default function StudioPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#09090B] text-zinc-100 flex items-center justify-center p-8">
-        <div className="p-8 rounded-2xl border border-zinc-800 bg-[#101014] text-center space-y-3">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
-          <div className="text-xs font-mono text-zinc-400">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-8">
+        <div className="p-8 rounded-2xl border border-border bg-card text-center space-y-3 shadow-lg">
+          <Ring className="size-7 text-emerald-500 mx-auto" />
+          <div className="text-xs font-mono text-muted-foreground">
             Analyzing dataset schema and computing candidate targets...
           </div>
         </div>
@@ -214,20 +213,20 @@ export default function StudioPage() {
 
   if (!candidates) {
     return (
-      <div className="min-h-screen bg-[#09090B] text-zinc-100 p-8">
-        <div className="max-w-xl mx-auto rounded-2xl border border-zinc-800 bg-[#101014] p-10 text-center space-y-5">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto">
+      <div className="min-h-screen bg-background text-foreground p-8">
+        <div className="max-w-xl mx-auto rounded-2xl border border-border bg-card p-10 text-center space-y-5 shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
             <Cpu className="w-6 h-6" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-base font-bold text-white">No Dataset Loaded for Training</h3>
-            <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+            <h3 className="text-base font-bold text-foreground">No Dataset Loaded for Training</h3>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
               Mount a dataset into workspace memory via the Dataset Explorer before configuring training pipelines.
             </p>
           </div>
           <Link
             href="/explorer"
-            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-all"
+            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all"
           >
             <span>Open Dataset Explorer</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -240,16 +239,16 @@ export default function StudioPage() {
   const currentModels = problemType === "classification" ? CLASSIFICATION_MODELS : REGRESSION_MODELS;
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 selection:bg-emerald-500 selection:text-white transition-colors duration-200">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
           <div className="space-y-1">
-            <div className="flex items-center space-x-2 text-xs font-mono text-blue-400 font-medium">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <div className="flex items-center space-x-2 text-xs font-mono text-emerald-600 dark:text-emerald-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>Parallel Multi-Model Training Console</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
               ML Training Studio
             </h1>
           </div>
@@ -258,9 +257,9 @@ export default function StudioPage() {
             <button
               onClick={handleStartTraining}
               disabled={isTraining}
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md shadow-blue-600/30 flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-75"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-md shadow-emerald-600/30 flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-75"
             >
-              {isTraining ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
+              {isTraining ? <Ring className="size-4 text-white" /> : <Play className="w-4 h-4 fill-white" />}
               <span>{isTraining ? "Training Pipelines..." : "Start Training Run"}</span>
             </button>
           </div>
@@ -268,56 +267,56 @@ export default function StudioPage() {
 
         {/* Notifications */}
         {error && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-xs flex items-center space-x-2.5 animate-in fade-in">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-200 text-xs flex items-center space-x-2.5 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {/* Real-time Training Progress Console */}
         {isTraining && jobStatus && (
-          <div className="rounded-2xl border border-blue-500/30 bg-[#101014] p-5 space-y-3.5 shadow-xl shadow-blue-950/20">
+          <div className="rounded-2xl border border-emerald-500/30 bg-card p-5 space-y-3.5 shadow-xl shadow-emerald-950/10">
             <div className="flex items-center justify-between text-xs font-mono font-medium">
-              <div className="flex items-center space-x-2 text-white">
-                <Terminal className="w-4 h-4 text-blue-400" />
+              <div className="flex items-center space-x-2 text-foreground">
+                <Terminal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <span>Background Worker Active (Job {jobId?.slice(0, 8)})</span>
               </div>
-              <span className="text-blue-400 font-bold">
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                 {Math.round((jobStatus.progress || 0) * 100)}% Complete
               </span>
             </div>
 
             {/* Modern Progress Bar */}
             <div className="space-y-1.5">
-              <div className="flex justify-between text-xs font-mono text-zinc-400">
+              <div className="flex justify-between text-xs font-mono text-muted-foreground">
                 <span>{jobStatus.current_model || "Fitting models on training split..."}</span>
                 <span>
                   {jobStatus.completed_models?.length || 0} / {jobStatus.total_models || selectedModels.length} models
                 </span>
               </div>
-              <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
                 <div
-                  className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                  className="bg-emerald-500 h-full rounded-full transition-all duration-300"
                   style={{ width: `${Math.round((jobStatus.progress || 0) * 100)}%` }}
                 />
               </div>
             </div>
 
             {/* Live Console Stream */}
-            <div className="p-3.5 rounded-xl bg-zinc-950 text-xs font-mono text-zinc-300 space-y-1 max-h-32 overflow-y-auto">
-              <div className="text-emerald-400">
+            <div className="p-3.5 rounded-xl bg-muted/60 text-xs font-mono text-foreground space-y-1 max-h-32 overflow-y-auto border border-border">
+              <div className="text-emerald-600 dark:text-emerald-400 font-semibold">
                 &gt; [Split] Zero data leakage verified: {(1 - testSize) * 100}% train, {testSize * 100}% test
               </div>
-              <div className="text-blue-400">
+              <div className="text-emerald-600 dark:text-emerald-400">
                 &gt; [Preprocessor] Fitted {scalerType.toUpperCase()} scaler strictly on X_train
               </div>
               {jobStatus.completed_models?.map((m: string) => (
-                <div key={m} className="text-zinc-300">
+                <div key={m} className="text-muted-foreground">
                   &gt; [Fitted] Algorithm `{m}` evaluated successfully.
                 </div>
               ))}
               {jobStatus.current_model && (
-                <div className="text-amber-400 animate-pulse">
+                <div className="text-amber-500 animate-pulse font-semibold">
                   &gt; [Running] Training `{jobStatus.current_model}` with hyperparameter validation...
                 </div>
               )}
@@ -330,10 +329,10 @@ export default function StudioPage() {
           {/* Left Column: Task & Target Selection */}
           <div className="space-y-6 lg:col-span-1">
             {/* 1. Problem Formulation */}
-            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-xs font-semibold text-zinc-200">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-border text-xs font-semibold text-foreground">
                 <span>1. Problem Formulation</span>
-                <span className="text-[10px] font-mono text-blue-400 uppercase">
+                <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 uppercase">
                   Suggested: {candidates.suggested_task}
                 </span>
               </div>
@@ -344,8 +343,8 @@ export default function StudioPage() {
                   onClick={() => handleTaskChange("classification")}
                   className={`p-3 rounded-xl text-xs font-semibold text-center transition-all ${
                     problemType === "classification"
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 border border-blue-500"
-                      : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30 border border-emerald-500"
+                      : "bg-muted text-muted-foreground hover:text-foreground border border-border"
                   }`}
                 >
                   Classification
@@ -355,8 +354,8 @@ export default function StudioPage() {
                   onClick={() => handleTaskChange("regression")}
                   className={`p-3 rounded-xl text-xs font-semibold text-center transition-all ${
                     problemType === "regression"
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 border border-blue-500"
-                      : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30 border border-emerald-500"
+                      : "bg-muted text-muted-foreground hover:text-foreground border border-border"
                   }`}
                 >
                   Regression
@@ -365,10 +364,10 @@ export default function StudioPage() {
             </div>
 
             {/* 2. Target Variable Selection */}
-            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-xs font-semibold text-zinc-200">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-border text-xs font-semibold text-foreground">
                 <span>2. Target Variable (y)</span>
-                <span className="text-[10px] font-mono text-emerald-400">Auto-Detected</span>
+                <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">Auto-Detected</span>
               </div>
 
               <select
@@ -378,7 +377,7 @@ export default function StudioPage() {
                   setTargetCol(newTarget);
                   setFeatureCols((prev) => prev.filter((c) => c !== newTarget));
                 }}
-                className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-background border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:border-emerald-500"
               >
                 {candidates[problemType].map((col) => (
                   <option key={col} value={col}>
@@ -394,19 +393,19 @@ export default function StudioPage() {
                   ))}
               </select>
 
-              <p className="text-[11px] text-zinc-500 leading-relaxed font-mono">
+              <p className="text-[11px] text-muted-foreground leading-relaxed font-mono">
                 Suggested target candidate selected based on cardinality and entropy analysis.
               </p>
             </div>
 
             {/* 3. Preprocessing Config */}
-            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-4">
-              <div className="pb-3 border-b border-zinc-800 text-xs font-semibold text-zinc-200">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-sm">
+              <div className="pb-3 border-b border-border text-xs font-semibold text-foreground">
                 <span>3. Preprocessing &amp; Split</span>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs text-zinc-400">Numeric Scaler</label>
+                <label className="text-xs text-muted-foreground">Numeric Scaler</label>
                 <div className="grid grid-cols-3 gap-1.5 text-xs">
                   {(["standard", "robust", "minmax"] as const).map((s) => (
                     <button
@@ -415,8 +414,8 @@ export default function StudioPage() {
                       onClick={() => setScalerType(s)}
                       className={`p-2 rounded-lg capitalize font-medium text-center transition-all ${
                         scalerType === s
-                          ? "bg-blue-600 text-white font-semibold shadow-sm"
-                          : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                          ? "bg-emerald-600 text-white font-semibold shadow-sm"
+                          : "bg-muted text-muted-foreground hover:text-foreground border border-border"
                       }`}
                     >
                       {s}
@@ -426,9 +425,9 @@ export default function StudioPage() {
               </div>
 
               <div className="space-y-2 pt-2">
-                <div className="flex justify-between text-xs text-zinc-400">
+                <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Test Split Ratio</span>
-                  <span className="text-blue-400 font-mono font-medium">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono font-medium">
                     {Math.round(testSize * 100)}% test / {(1 - testSize) * 100}% train
                   </span>
                 </div>
@@ -439,14 +438,14 @@ export default function StudioPage() {
                   step="0.05"
                   value={testSize}
                   onChange={(e) => setTestSize(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-blue-500"
+                  className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-emerald-500"
                 />
               </div>
 
               <div className="space-y-2 pt-2">
-                <div className="flex justify-between text-xs text-zinc-400">
+                <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Cross-Validation Folds</span>
-                  <span className="text-blue-400 font-mono font-medium">{cvFolds}-Fold CV</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono font-medium">{cvFolds}-Fold CV</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 text-xs">
                   {[3, 5, 10].map((f) => (
@@ -456,8 +455,8 @@ export default function StudioPage() {
                       onClick={() => setCvFolds(f)}
                       className={`p-1.5 rounded-lg font-mono text-center transition-all ${
                         cvFolds === f
-                          ? "bg-blue-600 text-white font-semibold shadow-sm"
-                          : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                          ? "bg-emerald-600 text-white font-semibold shadow-sm"
+                          : "bg-muted text-muted-foreground hover:text-foreground border border-border"
                       }`}
                     >
                       {f}-Fold
@@ -471,25 +470,25 @@ export default function StudioPage() {
           {/* Right Column: Features & Model Selection */}
           <div className="space-y-6 lg:col-span-2">
             {/* Features Selection */}
-            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-                <div className="text-xs font-semibold text-zinc-200 flex items-center space-x-2">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-border">
+                <div className="text-xs font-semibold text-foreground flex items-center space-x-2">
                   <span>4. Input Features Matrix (X)</span>
-                  <span className="text-blue-400 font-mono text-[11px]">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[11px]">
                     ({featureCols.length} of {candidates.columns.length - 1} selected)
                   </span>
                 </div>
                 <div className="flex space-x-3 text-xs">
                   <button
                     onClick={handleSelectAllFeatures}
-                    className="text-blue-400 hover:text-blue-300 font-medium"
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
                   >
                     Select All
                   </button>
-                  <span className="text-zinc-600">•</span>
+                  <span className="text-muted-foreground">•</span>
                   <button
                     onClick={handleClearFeatures}
-                    className="text-zinc-400 hover:text-white font-medium"
+                    className="text-muted-foreground hover:text-foreground font-medium"
                   >
                     Clear
                   </button>
@@ -508,8 +507,8 @@ export default function StudioPage() {
                         onClick={() => toggleFeature(col)}
                         className={`px-3 py-2 rounded-xl text-xs font-medium transition-all text-left truncate flex items-center justify-between ${
                           isSelected
-                            ? "bg-blue-600/15 text-blue-400 border border-blue-500/30 font-semibold"
-                            : "bg-zinc-900/60 text-zinc-400 hover:text-white border border-zinc-800"
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-semibold"
+                            : "bg-muted/60 text-muted-foreground hover:text-foreground border border-border"
                         }`}
                       >
                         <span className="truncate">{col}</span>
@@ -521,15 +520,15 @@ export default function StudioPage() {
             </div>
 
             {/* Model Architecture Checkboxes */}
-            <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-5 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-                <div className="text-xs font-semibold text-zinc-200 flex items-center space-x-2">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-border">
+                <div className="text-xs font-semibold text-foreground flex items-center space-x-2">
                   <span>5. Model Architectures to Train</span>
-                  <span className="text-emerald-400 font-mono text-[11px]">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[11px]">
                     ({selectedModels.length} selected)
                   </span>
                 </div>
-                <span className="text-xs text-zinc-500 font-mono">Parallel Execution</span>
+                <span className="text-xs text-muted-foreground font-mono">Parallel Execution</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -541,34 +540,34 @@ export default function StudioPage() {
                       onClick={() => toggleModel(m.id)}
                       className={`p-3.5 rounded-xl border cursor-pointer select-none transition-all flex items-start space-x-3 ${
                         isChecked
-                          ? "bg-blue-950/15 border-blue-500/40 ring-1 ring-blue-500/20"
-                          : "bg-zinc-900/40 border-zinc-800 hover:border-zinc-700"
+                          ? "bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/20"
+                          : "bg-muted/40 border-border hover:border-border/80"
                       }`}
                     >
                       <div
                         className={`w-4 h-4 rounded mt-0.5 border flex items-center justify-center transition-colors shrink-0 ${
-                          isChecked ? "bg-blue-600 border-blue-500 text-white" : "border-zinc-700 bg-zinc-800"
+                          isChecked ? "bg-emerald-600 border-emerald-500 text-white" : "border-border bg-background"
                         }`}
                       >
                         {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
                       <div className="space-y-0.5">
-                        <div className="font-semibold text-xs text-white">{m.name}</div>
-                        <p className="text-[11px] text-zinc-400 leading-relaxed">{m.desc}</p>
+                        <div className="font-semibold text-xs text-foreground">{m.name}</div>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">{m.desc}</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="pt-4 border-t border-zinc-800 flex justify-end">
+              <div className="pt-4 border-t border-border flex justify-end">
                 <button
                   type="button"
                   onClick={handleStartTraining}
                   disabled={isTraining}
-                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md shadow-blue-600/30 flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-75"
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/30 flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-75"
                 >
-                  {isTraining ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
+                  {isTraining ? <Ring className="size-4 text-white" /> : <Play className="w-4 h-4 fill-white" />}
                   <span>Dispatch Parallel Training Job</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>

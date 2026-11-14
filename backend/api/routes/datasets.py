@@ -21,14 +21,15 @@ from core.dataset_loader import (
     load_curated_dataset,
     search_hf_datasets,
     load_hf_dataset_via_api,
-    load_csv_dataset
+    load_csv_dataset,
+    load_uploaded_file
 )
 from core.quality_analyzer import analyze_data_quality
 
 router = APIRouter(prefix="/datasets", tags=["Datasets"])
 
 
-def _build_preview_response(df: pd.DataFrame, meta: dict, session_id: str, limit: int = 50) -> DatasetPreviewResponse:
+def build_preview_response(df: pd.DataFrame, meta: dict, session_id: str, limit: int = 50) -> DatasetPreviewResponse:
     cols_info: List[ColumnSchemaInfo] = []
     for col in df.columns:
         s = df[col]
@@ -59,6 +60,10 @@ def _build_preview_response(df: pd.DataFrame, meta: dict, session_id: str, limit
         columns=cols_info,
         records=records
     )
+
+
+# Backwards compatibility alias
+_build_preview_response = build_preview_response
 
 
 @router.get("/curated", response_model=List[CuratedDatasetItem])
@@ -104,17 +109,30 @@ def load_hf(req: LoadHFRequest):
 
 
 MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB limit
+ALLOWED_UPLOAD_EXTENSIONS = (".csv", ".tsv", ".txt", ".xlsx", ".xls", ".json", ".jsonl", ".pdf", ".sql")
 
 
-@router.post("/upload-csv", response_model=DatasetPreviewResponse)
-async def upload_csv(
+@router.post("/upload-file", response_model=DatasetPreviewResponse)
+async def upload_file(
     file: UploadFile = File(...),
     session_id: str = Form("default")
 ):
-    if not file.filename or not (file.filename.lower().endswith(".csv") or file.filename.lower().endswith(".txt")):
+    """
+    Multi-format dataset ingestion endpoint supporting:
+    - CSV / TSV (.csv, .tsv, .txt)
+    - Excel Workbooks (.xlsx, .xls)
+    - JSON / JSON Lines (.json, .jsonl)
+    - PDF Document Tables (.pdf)
+    - SQL DDL / DML dumps (.sql)
+    """
+    fn = (file.filename or "").lower().strip()
+    if not fn or not any(fn.endswith(ext) for ext in ALLOWED_UPLOAD_EXTENSIONS):
         raise HTTPException(
             status_code=400,
-            detail="Invalid file format. Only standard CSV (.csv) or text delimiter (.txt) files are supported."
+            detail=(
+                f"Unsupported file format '{file.filename}'. "
+                f"Allowed formats: CSV (.csv), Excel (.xlsx, .xls), JSON (.json), PDF (.pdf), SQL (.sql)."
+            )
         )
 
     content = await file.read()
@@ -125,13 +143,21 @@ async def upload_csv(
         )
 
     try:
-        df, meta = load_csv_dataset(content, filename=file.filename or "upload.csv")
+        df, meta = load_uploaded_file(content, filename=file.filename or "upload.csv")
         store.set_dataset(session_id, df, meta)
         analysis = analyze_data_quality(df)
         store.set_quality_analysis(session_id, analysis)
-        return _build_preview_response(df, meta, session_id)
+        return build_preview_response(df, meta, session_id)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to process CSV file: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to process uploaded file: {str(e)}")
+
+
+@router.post("/upload-csv", response_model=DatasetPreviewResponse)
+async def upload_csv(
+    file: UploadFile = File(...),
+    session_id: str = Form("default")
+):
+    return await upload_file(file=file, session_id=session_id)
 
 
 @router.post("/clear-workspace")

@@ -168,3 +168,40 @@ class ModelDiagnosticsResponse(BaseModel):
     residuals: Optional[List[float]] = None
     predictions: Optional[List[float]] = None
     ground_truth: Optional[List[float]] = None
+
+
+# Data Cleaning & Undo/Redo Schemas
+class CleanActionRequest(BaseModel):
+    session_id: str = "default"
+    action_type: str  # impute_missing, remove_duplicates, convert_dtype, rename_column, drop_columns, clip_outliers, filter_rows
+    params: Dict[str, Any] = {}
+
+
+class CleanActionResponse(BaseModel):
+    status: str = "success"
+    action: str
+    rows: int
+    cols: int
+    can_undo: bool
+    can_redo: bool
+    preview: DatasetPreviewResponse
+
+
+class UndoRedoRequest(BaseModel):
+    session_id: str = "default"
+
+
+class HistoryItem(BaseModel):
+    step: int
+    action: str
+    timestamp: float
+    rows: int
+    cols: int
+
+
+class HistoryResponse(BaseModel):
+    history: List[HistoryItem]
+    can_undo: bool
+    can_redo: bool
+    last_action: Optional[str] = None
+

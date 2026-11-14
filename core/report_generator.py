@@ -7,8 +7,9 @@ and packages fitted Scikit-learn pipelines with serialization metadata.
 import io
 import json
 from datetime import datetime
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 import joblib
+import pandas as pd
 
 from core.config import THEME_COLORS, APP_NAME, APP_VERSION
 
@@ -332,3 +333,102 @@ def export_model_pipeline_bytes(
     joblib.dump(payload, buffer, compress=3)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def generate_excel_workbook(
+    df: Optional[pd.DataFrame],
+    dataset_meta: Dict[str, Any],
+    quality_summary: Optional[Dict[str, Any]] = None,
+    model_evaluations: Optional[Dict[str, Dict[str, Any]]] = None,
+    best_model_info: Optional[Dict[str, Any]] = None,
+    problem_type: str = "classification"
+) -> bytes:
+    """
+    Generate an executive multi-sheet Excel workbook (.xlsx) with:
+    - Sheet 1: Dataset Overview (Metadata, column data types, missing rates)
+    - Sheet 2: Quality Audit (Completeness, duplicate count, health metrics)
+    - Sheet 3: Model Leaderboard (All trained models, scores, champion)
+    - Sheet 4: Data Sample (First 100 rows of cleaned dataset)
+    """
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        # Sheet 1: Overview
+        overview_data = [
+            {"Property": "Dataset Name", "Value": dataset_meta.get("name", "Active Dataset")},
+            {"Property": "Format / Source", "Value": dataset_meta.get("format", "In-Memory")},
+            {"Property": "Total Rows", "Value": len(df) if df is not None else dataset_meta.get("total_rows", 0)},
+            {"Property": "Total Columns", "Value": len(df.columns) if df is not None else dataset_meta.get("total_columns", 0)},
+            {"Property": "Export Timestamp", "Value": datetime.now().strftime("%Y-%m-%d %H:%M:%S")},
+            {"Property": "Platform", "Value": f"{APP_NAME} v{APP_VERSION}"},
+        ]
+        if df is not None:
+            col_summary = []
+            for col in df.columns:
+                col_summary.append({
+                    "Column": col,
+                    "Type": str(df[col].dtype),
+                    "Missing Count": int(df[col].isna().sum()),
+                    "Missing %": round(float(df[col].isna().mean() * 100), 2),
+                    "Unique Values": int(df[col].nunique())
+                })
+            pd.DataFrame(overview_data).to_excel(writer, sheet_name="Overview", index=False)
+            pd.DataFrame(col_summary).to_excel(writer, sheet_name="Column Dictionary", index=False)
+        else:
+            pd.DataFrame(overview_data).to_excel(writer, sheet_name="Overview", index=False)
+
+        # Sheet 2: Quality Audit
+        if quality_summary:
+            q_overview = quality_summary.get("overview", {})
+            quality_rows = [
+                {"Metric": "Completeness Score (%)", "Value": q_overview.get("completeness_score", 100)},
+                {"Metric": "Health Score (%)", "Value": q_overview.get("health_score", 100)},
+                {"Metric": "Duplicate Rows", "Value": q_overview.get("duplicate_rows", 0)},
+                {"Metric": "Missing Cells", "Value": q_overview.get("missing_cells", 0)},
+                {"Metric": "Constant Columns", "Value": q_overview.get("constant_columns", 0)},
+            ]
+            pd.DataFrame(quality_rows).to_excel(writer, sheet_name="Quality Audit", index=False)
+
+        # Sheet 3: Model Leaderboard
+        if model_evaluations:
+            best_name = best_model_info.get("name") if best_model_info else None
+            leaderboard_rows = []
+            for k, ev in model_evaluations.items():
+                m_name = ev.get("model_name", k)
+                metrics = ev.get("metrics", {})
+                row = {
+                    "Model": m_name,
+                    "Champion": "★ Champion" if m_name == best_name else "",
+                    "Fit Time (s)": round(ev.get("fit_time", 0.0), 3)
+                }
+                for m_k, m_v in metrics.items():
+                    if isinstance(m_v, (int, float)):
+                        row[m_k] = round(m_v, 4)
+                leaderboard_rows.append(row)
+            pd.DataFrame(leaderboard_rows).to_excel(writer, sheet_name="Model Leaderboard", index=False)
+
+        # Sheet 4: Data Sample
+        if df is not None:
+            df.head(100).to_excel(writer, sheet_name="Data Sample (Top 100)", index=False)
+
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def generate_project_state_json(session: Dict[str, Any]) -> str:
+    """
+    Generate an exportable JSON dossier capturing complete project session state.
+    """
+    comp_df = session.get("comparison_df")
+    state = {
+        "platform": APP_NAME,
+        "version": APP_VERSION,
+        "exported_at": datetime.now().isoformat(),
+        "metadata": session.get("metadata", {}),
+        "quality_analysis": session.get("quality_analysis", {}),
+        "ml_meta": session.get("ml_meta", {}),
+        "model_evaluations": session.get("model_evaluations", {}),
+        "comparison_table": comp_df.to_dict(orient="records") if comp_df is not None else [],
+        "clean_history_count": len(session.get("clean_history", []))
+    }
+    return json.dumps(state, indent=2, default=str)
+

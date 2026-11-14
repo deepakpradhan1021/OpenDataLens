@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -20,6 +20,14 @@ import {
   Send,
   HelpCircle,
   ChevronRight,
+  Undo2,
+  Redo2,
+  Wand2,
+  Scissors,
+  Sliders,
+  Trash2,
+  Filter,
+  History,
 } from "lucide-react";
 import {
   BarChart,
@@ -32,7 +40,12 @@ import {
   Cell,
 } from "recharts";
 import { api, categorizeApiError } from "@/lib/api";
-import { QualityAnalysisResponse, CopilotResponse, ColumnDistributionResponse } from "@/lib/types";
+import {
+  QualityAnalysisResponse,
+  CopilotResponse,
+  ColumnDistributionResponse,
+  HistoryItem,
+} from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 
 export default function QualityPage() {
@@ -50,16 +63,63 @@ export default function QualityPage() {
   const [copilotError, setCopilotError] = useState<string | null>(null);
   const [copilotResponse, setCopilotResponse] = useState<CopilotResponse | null>(null);
 
-  const fetchQuality = async () => {
+  // Interactive Cleaning Studio State
+  const [activeCleanTool, setActiveCleanTool] = useState<"impute" | "duplicates" | "type" | "outliers" | "drop" | "filter">("impute");
+  const [cleaningLoading, setCleaningLoading] = useState(false);
+  const [cleaningStatus, setCleaningStatus] = useState<string | null>(null);
+  const [cleaningError, setCleaningError] = useState<string | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Tool Specific Parameters
+  const [imputeCol, setImputeCol] = useState("");
+  const [imputeStrategy, setImputeStrategy] = useState("median");
+  const [imputeConstant, setImputeConstant] = useState("");
+
+  const [typeCol, setTypeCol] = useState("");
+  const [targetType, setTargetType] = useState("numeric");
+
+  const [outlierCol, setOutlierCol] = useState("");
+  const [lowerQuantile, setLowerQuantile] = useState(0.01);
+  const [upperQuantile, setUpperQuantile] = useState(0.99);
+
+  const [dropCol, setDropCol] = useState("");
+
+  const [filterCol, setFilterCol] = useState("");
+  const [filterOperator, setFilterOperator] = useState("==");
+  const [filterVal, setFilterVal] = useState("");
+
+  const refreshHistory = useCallback(async () => {
+    try {
+      const res = await api.getCleanHistory();
+      setCanUndo(res.can_undo);
+      setCanRedo(res.can_redo);
+      setHistoryItems(res.history);
+    } catch {
+      // Non-blocking
+    }
+  }, []);
+
+  const fetchQuality = useCallback(async () => {
     setLoading(true);
     setQualityError(null);
     try {
       const q = await api.getQualityAnalysis();
       setQuality(q);
-      const firstCol = Object.keys(q.missing_summary)[0];
-      if (firstCol) {
-        setSelectedCol(firstCol);
+      const cols = Object.keys(q.missing_summary);
+      if (cols.length > 0) {
+        if (!selectedCol || !cols.includes(selectedCol)) {
+          setSelectedCol(cols[0]);
+        }
+        if (!imputeCol) setImputeCol(cols[0]);
+        if (!typeCol) setTypeCol(cols[0]);
+        if (!outlierCol) setOutlierCol(q.column_types.numeric[0] || cols[0]);
+        if (!dropCol) setDropCol(cols[0]);
+        if (!filterCol) setFilterCol(cols[0]);
       }
+      refreshHistory();
     } catch (e: any) {
       console.error(e);
       const cat = categorizeApiError(e);
@@ -73,11 +133,11 @@ export default function QualityPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCol, imputeCol, typeCol, outlierCol, dropCol, filterCol, refreshHistory]);
 
   useEffect(() => {
     fetchQuality();
-  }, []);
+  }, [fetchQuality]);
 
   const fetchColumnDistribution = (colName: string) => {
     if (!colName) return;
@@ -103,6 +163,63 @@ export default function QualityPage() {
     }
   }, [selectedCol]);
 
+  const handleApplyCleanAction = async (actionType: string, params: Record<string, any>) => {
+    setCleaningLoading(true);
+    setCleaningStatus(null);
+    setCleaningError(null);
+    try {
+      const res = await api.cleanDataset(actionType, params);
+      setCleaningStatus(res.action);
+      setCanUndo(res.can_undo);
+      setCanRedo(res.can_redo);
+      await fetchQuality();
+    } catch (e: any) {
+      console.error(e);
+      const cat = categorizeApiError(e);
+      setCleaningError(cat.message || "Failed to apply cleaning transformation.");
+    } finally {
+      setCleaningLoading(false);
+    }
+  };
+
+  const handleUndo = async () => {
+    if (!canUndo || cleaningLoading) return;
+    setCleaningLoading(true);
+    setCleaningStatus(null);
+    setCleaningError(null);
+    try {
+      const res = await api.undoClean();
+      setCleaningStatus(`Undo: ${res.action}`);
+      setCanUndo(res.can_undo);
+      setCanRedo(res.can_redo);
+      await fetchQuality();
+    } catch (e: any) {
+      console.error(e);
+      setCleaningError(e.response?.data?.detail || "Failed to undo transformation.");
+    } finally {
+      setCleaningLoading(false);
+    }
+  };
+
+  const handleRedo = async () => {
+    if (!canRedo || cleaningLoading) return;
+    setCleaningLoading(true);
+    setCleaningStatus(null);
+    setCleaningError(null);
+    try {
+      const res = await api.redoClean();
+      setCleaningStatus(`Redo: ${res.action}`);
+      setCanUndo(res.can_undo);
+      setCanRedo(res.can_redo);
+      await fetchQuality();
+    } catch (e: any) {
+      console.error(e);
+      setCleaningError(e.response?.data?.detail || "Failed to redo transformation.");
+    } finally {
+      setCleaningLoading(false);
+    }
+  };
+
   const handleAskCopilot = async (question?: string) => {
     const qText = question || copilotQuery;
     if (!qText.trim()) return;
@@ -122,10 +239,10 @@ export default function QualityPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#09090B] text-zinc-100 flex items-center justify-center p-8">
-        <div className="p-8 rounded-2xl border border-zinc-800 bg-[#101014] text-center space-y-3">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
-          <div className="text-xs font-mono text-zinc-400">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-8">
+        <div className="p-8 rounded-2xl border border-border bg-card text-center space-y-3 shadow-md">
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mx-auto" />
+          <div className="text-xs font-mono text-muted-foreground">
             Computing statistical moments, IQR outlier boundaries, and quality health scores...
           </div>
         </div>
@@ -135,27 +252,27 @@ export default function QualityPage() {
 
   if (qualityError) {
     return (
-      <div className="min-h-screen bg-[#09090B] text-zinc-100 p-8 flex items-center justify-center">
-        <div className="max-w-xl mx-auto rounded-2xl border border-rose-500/30 bg-[#101014] p-10 text-center space-y-5">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+      <div className="min-h-screen bg-background text-foreground p-8 flex items-center justify-center">
+        <div className="max-w-xl mx-auto rounded-2xl border border-rose-500/30 bg-card p-10 text-center space-y-5 shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-base font-bold text-white">Quality Analysis Error</h3>
-            <p className="text-xs text-rose-300 max-w-sm mx-auto leading-relaxed">
+            <h3 className="text-base font-bold text-foreground">Quality Analysis Error</h3>
+            <p className="text-xs text-rose-600 dark:text-rose-300 max-w-sm mx-auto leading-relaxed">
               {qualityError}
             </p>
           </div>
           <div className="flex items-center justify-center space-x-3 pt-2">
             <button
               onClick={() => fetchQuality()}
-              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold border border-zinc-700 transition-colors"
+              className="px-4 py-2 rounded-xl bg-card hover:bg-muted text-foreground text-xs font-semibold border border-border transition-colors shadow-sm"
             >
               Retry Analysis
             </button>
             <Link
               href="/explorer"
-              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-all"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all"
             >
               <span>Go to Explorer</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -168,20 +285,20 @@ export default function QualityPage() {
 
   if (!quality) {
     return (
-      <div className="min-h-screen bg-[#09090B] text-zinc-100 p-8 flex items-center justify-center">
-        <div className="max-w-xl mx-auto rounded-2xl border border-zinc-800 bg-[#101014] p-10 text-center space-y-5">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+      <div className="min-h-screen bg-background text-foreground p-8 flex items-center justify-center">
+        <div className="max-w-xl mx-auto rounded-2xl border border-border bg-card p-10 text-center space-y-5 shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-base font-bold text-white">No Dataset Available to Audit</h3>
-            <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+            <h3 className="text-base font-bold text-foreground">No Dataset Available to Audit</h3>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
               Mount a dataset into workspace memory via the Dataset Explorer before running statistical diagnostics.
             </p>
           </div>
           <Link
             href="/explorer"
-            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-all"
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all"
           >
             <span>Open Dataset Explorer</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -198,30 +315,61 @@ export default function QualityPage() {
   }));
 
   const outlierEntries = quality.outliers ? Object.entries(quality.outliers) : [];
+  const allColumns = Object.keys(quality.missing_summary);
+  const numericColumns = quality.column_types.numeric || [];
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header Breadcrumb */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
           <div className="space-y-1">
-            <div className="flex items-center space-x-2 text-xs font-mono text-zinc-500 mb-1">
-              <Link href="/explorer" className="hover:text-zinc-300">Explorer</Link>
+            <div className="flex items-center space-x-2 text-xs font-mono text-muted-foreground mb-1">
+              <Link href="/explorer" className="hover:text-foreground">Explorer</Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-blue-400">Quality Intelligence &amp; Profiling</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Quality &amp; Cleaning Studio</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center space-x-3">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center space-x-3">
               <span>Data Quality Intelligence</span>
             </h1>
-            <p className="text-xs sm:text-sm text-zinc-400 font-sans">
-              Audit completeness, IQR numerical outliers, target leakage risks, and high-cardinality flags.
+            <p className="text-xs sm:text-sm text-muted-foreground font-sans">
+              Audit completeness, IQR numerical outliers, clean data interactively with undo/redo, and validate pre-flight ML readiness.
             </p>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2.5">
+            {/* Undo / Redo Toolbar */}
+            <div className="flex items-center p-1 rounded-xl bg-card border border-border shadow-sm space-x-1">
+              <button
+                onClick={handleUndo}
+                disabled={!canUndo || cleaningLoading}
+                className="p-1.5 rounded-lg text-xs font-medium text-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                title="Undo last transformation"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={!canRedo || cleaningLoading}
+                className="p-1.5 rounded-lg text-xs font-medium text-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                title="Redo transformation"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <div className="w-[1px] h-4 bg-border mx-1" />
+              <button
+                onClick={() => setShowHistoryModal(!showHistoryModal)}
+                className="flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="View transformation history"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>{historyItems.length}</span>
+              </button>
+            </div>
+
             <Link
               href="/studio"
-              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow-sm shadow-blue-600/30 transition-all active:scale-95"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium shadow-sm shadow-emerald-600/30 transition-all active:scale-95"
             >
               <Cpu className="w-3.5 h-3.5" />
               <span>Proceed to ML Studio</span>
@@ -230,72 +378,446 @@ export default function QualityPage() {
           </div>
         </div>
 
+        {/* History Modal / Drawer */}
+        {showHistoryModal && (
+          <div className="p-4 rounded-2xl border border-border bg-card shadow-lg space-y-3 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <span className="text-xs font-semibold text-foreground flex items-center space-x-1.5">
+                <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Data Transformation History Timeline</span>
+              </span>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Close
+              </button>
+            </div>
+            {historyItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">No transformations recorded yet. Use the Data Cleaning Studio below to clean and transform columns.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {historyItems.map((item) => (
+                  <div key={item.step} className="p-2.5 rounded-lg bg-muted/40 border border-border/80 text-xs flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <span className="font-semibold text-foreground">Step {item.step}: {item.action}</span>
+                      <div className="text-[11px] font-mono text-muted-foreground">
+                        {item.rows.toLocaleString()} rows × {item.cols} cols
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      {new Date(item.timestamp * 1000).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Top 4 KPI Health Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 rounded-2xl border border-zinc-800 bg-[#101014] space-y-2">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-sans font-medium">
+          <div className="p-5 rounded-2xl border border-border bg-card space-y-2 shadow-sm">
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-sans font-medium">
               <span>Completeness Score</span>
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <div className="text-3xl font-bold font-mono text-white">
+            <div className="text-3xl font-bold font-mono text-foreground">
               {quality.overview.completeness_score}%
             </div>
-            <div className="text-xs text-zinc-500 font-sans">
+            <div className="text-xs text-muted-foreground font-sans">
               {quality.overview.total_missing_cells.toLocaleString()} missing cells out of{" "}
               {quality.overview.total_cells.toLocaleString()}
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl border border-zinc-800 bg-[#101014] space-y-2">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-sans font-medium">
+          <div className="p-5 rounded-2xl border border-border bg-card space-y-2 shadow-sm">
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-sans font-medium">
               <span>Duplicate Rows</span>
-              <TableIcon className="w-4 h-4 text-blue-400" />
+              <TableIcon className="w-4 h-4 text-teal-600 dark:text-teal-400" />
             </div>
-            <div className="text-3xl font-bold font-mono text-white">
+            <div className="text-3xl font-bold font-mono text-foreground">
               {quality.overview.duplicate_rows}
             </div>
-            <div className="text-xs text-zinc-500 font-sans">
+            <div className="text-xs text-muted-foreground font-sans">
               {quality.overview.duplicate_pct}% duplication rate
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl border border-zinc-800 bg-[#101014] space-y-2">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-sans font-medium">
+          <div className="p-5 rounded-2xl border border-border bg-card space-y-2 shadow-sm">
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-sans font-medium">
               <span>Features Audited</span>
-              <Layers className="w-4 h-4 text-indigo-400" />
+              <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <div className="text-3xl font-bold font-mono text-white">
+            <div className="text-3xl font-bold font-mono text-foreground">
               {quality.overview.total_cols}
             </div>
-            <div className="text-xs text-zinc-500 font-sans">
+            <div className="text-xs text-muted-foreground font-sans">
               {quality.column_types.numeric.length} numeric, {quality.column_types.categorical.length} categorical
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl border border-zinc-800 bg-[#101014] space-y-2">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-sans font-medium">
+          <div className="p-5 rounded-2xl border border-border bg-card space-y-2 shadow-sm">
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-sans font-medium">
               <span>Memory Footprint</span>
-              <Cpu className="w-4 h-4 text-purple-400" />
+              <Cpu className="w-4 h-4 text-violet-500" />
             </div>
-            <div className="text-3xl font-bold font-mono text-white">
-              {quality.overview.memory_mb} <span className="text-sm font-normal text-zinc-400 font-sans">MB</span>
+            <div className="text-3xl font-bold font-mono text-foreground">
+              {quality.overview.memory_mb} <span className="text-sm font-normal text-muted-foreground font-sans">MB</span>
             </div>
-            <div className="text-xs text-zinc-500 font-sans">
+            <div className="text-xs text-muted-foreground font-sans">
               {quality.overview.total_rows.toLocaleString()} memory-resident records
             </div>
           </div>
         </div>
 
+        {/* INTERACTIVE DATA CLEANING STUDIO */}
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <Wand2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm text-foreground">Interactive Data Cleaning Studio</h3>
+                <p className="text-xs text-muted-foreground">Deterministic transformations with zero leakage and instant undo/redo</p>
+              </div>
+            </div>
+
+            {/* Tool Selector Pills */}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: "impute", label: "Impute Missing" },
+                { id: "duplicates", label: "Deduplicate" },
+                { id: "type", label: "Cast Type" },
+                { id: "outliers", label: "Clip Outliers" },
+                { id: "drop", label: "Drop Column" },
+                { id: "filter", label: "Filter Rows" },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveCleanTool(t.id as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    activeCleanTool === t.id
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tool Parameters Form */}
+          <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-4">
+            {activeCleanTool === "impute" && (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-foreground">Impute Missing Values in Feature</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Target Column</label>
+                    <select
+                      value={imputeCol}
+                      onChange={(e) => setImputeCol(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      {allColumns.map((col) => (
+                        <option key={col} value={col}>
+                          {col} ({quality.missing_summary[col]?.missing_count || 0} nulls)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Imputation Strategy</label>
+                    <select
+                      value={imputeStrategy}
+                      onChange={(e) => setImputeStrategy(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="median">Median (Numeric robust)</option>
+                      <option value="mean">Mean (Numeric standard)</option>
+                      <option value="mode">Mode (Most frequent category)</option>
+                      <option value="constant">Constant Value</option>
+                      <option value="drop">Drop Rows with Nulls</option>
+                    </select>
+                  </div>
+
+                  {imputeStrategy === "constant" && (
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">Constant Value</label>
+                      <input
+                        type="text"
+                        value={imputeConstant}
+                        onChange={(e) => setImputeConstant(e.target.value)}
+                        placeholder="e.g. 0 or 'Unknown'"
+                        className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() =>
+                    handleApplyCleanAction("impute_missing", {
+                      column: imputeCol,
+                      strategy: imputeStrategy,
+                      constant_value: imputeStrategy === "constant" ? imputeConstant : undefined,
+                    })
+                  }
+                  disabled={cleaningLoading}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                >
+                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                  <span>Apply Imputation</span>
+                </button>
+              </div>
+            )}
+
+            {activeCleanTool === "duplicates" && (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-foreground">Remove Exact Duplicate Rows</div>
+                <p className="text-xs text-muted-foreground">
+                  Current dataset contains <strong className="text-foreground">{quality.overview.duplicate_rows}</strong> duplicate rows ({quality.overview.duplicate_pct}%). Deduplication preserves the first occurrence of each row.
+                </p>
+                <button
+                  onClick={() => handleApplyCleanAction("remove_duplicates", { keep: "first" })}
+                  disabled={cleaningLoading || quality.overview.duplicate_rows === 0}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
+                  <span>Remove Duplicate Rows</span>
+                </button>
+              </div>
+            )}
+
+            {activeCleanTool === "type" && (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-foreground">Cast Column Data Type</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Column</label>
+                    <select
+                      value={typeCol}
+                      onChange={(e) => setTypeCol(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      {allColumns.map((col) => (
+                        <option key={col} value={col}>
+                          {col} ({quality.missing_summary[col]?.dtype})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Target Data Type</label>
+                    <select
+                      value={targetType}
+                      onChange={(e) => setTargetType(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="numeric">Numeric (Float)</option>
+                      <option value="integer">Integer (Nullable Int64)</option>
+                      <option value="string">String (Text)</option>
+                      <option value="categorical">Categorical</option>
+                      <option value="datetime">Datetime</option>
+                      <option value="boolean">Boolean</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleApplyCleanAction("convert_dtype", { column: typeCol, target_dtype: targetType })}
+                  disabled={cleaningLoading}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                >
+                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sliders className="w-3.5 h-3.5" />}
+                  <span>Convert Column Type</span>
+                </button>
+              </div>
+            )}
+
+            {activeCleanTool === "outliers" && (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-foreground">Winsorize / Clip Numerical Outliers</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Numeric Column</label>
+                    <select
+                      value={outlierCol}
+                      onChange={(e) => setOutlierCol(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      {numericColumns.map((col) => (
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Lower Quantile ({lowerQuantile})</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.0"
+                      max="0.4"
+                      value={lowerQuantile}
+                      onChange={(e) => setLowerQuantile(parseFloat(e.target.value) || 0.01)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Upper Quantile ({upperQuantile})</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.6"
+                      max="1.0"
+                      value={upperQuantile}
+                      onChange={(e) => setUpperQuantile(parseFloat(e.target.value) || 0.99)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={() =>
+                    handleApplyCleanAction("clip_outliers", {
+                      column: outlierCol,
+                      lower_quantile: lowerQuantile,
+                      upper_quantile: upperQuantile,
+                    })
+                  }
+                  disabled={cleaningLoading || numericColumns.length === 0}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                >
+                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                  <span>Clip Outliers</span>
+                </button>
+              </div>
+            )}
+
+            {activeCleanTool === "drop" && (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-foreground">Drop Irrelevant or High-Cardinality Column</div>
+                <div className="max-w-xs">
+                  <label className="text-[11px] text-muted-foreground block mb-1">Column to Remove</label>
+                  <select
+                    value={dropCol}
+                    onChange={(e) => setDropCol(e.target.value)}
+                    className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                  >
+                    {allColumns.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={() => handleApplyCleanAction("drop_columns", { columns: [dropCol] })}
+                  disabled={cleaningLoading}
+                  className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                >
+                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <span>Drop Column</span>
+                </button>
+              </div>
+            )}
+
+            {activeCleanTool === "filter" && (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-foreground">Filter Rows by Condition</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Column</label>
+                    <select
+                      value={filterCol}
+                      onChange={(e) => setFilterCol(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      {allColumns.map((col) => (
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Operator</label>
+                    <select
+                      value={filterOperator}
+                      onChange={(e) => setFilterOperator(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="==">Equals (==)</option>
+                      <option value="!=">Not Equals (!=)</option>
+                      <option value=">">Greater Than (&gt;)</option>
+                      <option value=">=">Greater or Equal (&gt;=)</option>
+                      <option value="<">Less Than (&lt;)</option>
+                      <option value="<=">Less or Equal (&lt;=)</option>
+                      <option value="contains">Contains (text substring)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Value</label>
+                    <input
+                      type="text"
+                      value={filterVal}
+                      onChange={(e) => setFilterVal(e.target.value)}
+                      placeholder="e.g. 50 or active"
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={() =>
+                    handleApplyCleanAction("filter_rows", {
+                      column: filterCol,
+                      operator: filterOperator,
+                      value: filterVal,
+                    })
+                  }
+                  disabled={cleaningLoading || !filterVal.trim()}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Filter className="w-3.5 h-3.5" />}
+                  <span>Filter Rows</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Action Status Banner */}
+          {cleaningStatus && (
+            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="font-medium">{cleaningStatus}</span>
+              </div>
+              <button
+                onClick={handleUndo}
+                disabled={!canUndo}
+                className="text-[11px] font-semibold underline hover:text-emerald-900 dark:hover:text-emerald-100 disabled:opacity-40"
+              >
+                Undo
+              </button>
+            </div>
+          )}
+
+          {cleaningError && (
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>{cleaningError}</span>
+            </div>
+          )}
+        </div>
+
         {/* AI DATASET COPILOT ASSISTANT */}
-        <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-950/20 via-zinc-900/60 to-zinc-900/40 p-6 space-y-4 shadow-lg shadow-blue-950/20">
+        <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 via-teal-500/5 to-card p-6 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-semibold text-sm text-white font-sans">AI Dataset Copilot</h3>
-                <p className="text-xs text-zinc-400 font-sans">Deterministic workspace intelligence based on verified audit metrics</p>
+                <h3 className="font-semibold text-sm text-foreground font-sans">AI Dataset Copilot</h3>
+                <p className="text-xs text-muted-foreground font-sans">Deterministic workspace intelligence based on verified audit metrics</p>
               </div>
             </div>
           </div>
@@ -311,7 +833,7 @@ export default function QualityPage() {
               <button
                 key={prompt}
                 onClick={() => handleAskCopilot(prompt)}
-                className="px-3 py-1 rounded-lg border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-xs font-sans font-medium text-zinc-300 hover:text-white transition-colors"
+                className="px-3 py-1 rounded-lg border border-border bg-card hover:bg-muted text-xs font-sans font-medium text-muted-foreground hover:text-foreground transition-colors shadow-sm"
               >
                 {prompt}
               </button>
@@ -326,12 +848,12 @@ export default function QualityPage() {
               onChange={(e) => setCopilotQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAskCopilot()}
               placeholder="Ask Copilot a question about this dataset (e.g. 'Explain my dataset' or 'What should I clean first?')..."
-              className="flex-1 p-2.5 rounded-xl border border-zinc-700 bg-zinc-950/80 text-xs font-sans text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+              className="flex-1 p-2.5 rounded-xl border border-border bg-muted/40 text-xs font-sans text-foreground placeholder-muted-foreground focus:outline-none focus:border-emerald-500"
             />
             <button
               onClick={() => handleAskCopilot()}
               disabled={copilotLoading}
-              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50 shadow-sm"
             >
               {copilotLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               <span>Ask</span>
@@ -340,11 +862,11 @@ export default function QualityPage() {
 
           {/* Copilot Error Alert */}
           {copilotError && (
-            <div className="mt-2 p-3 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs text-rose-300 flex items-center justify-between">
+            <div className="mt-2 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between">
               <span className="font-sans">{copilotError}</span>
               <button
                 onClick={() => handleAskCopilot()}
-                className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-white font-medium text-xs transition-colors"
+                className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-800 dark:text-rose-100 font-medium text-xs transition-colors"
               >
                 Retry
               </button>
@@ -353,11 +875,11 @@ export default function QualityPage() {
 
           {/* Copilot Answer Display */}
           {copilotResponse && (
-            <div className="mt-3 p-4 rounded-xl border border-blue-500/20 bg-blue-950/30 text-xs text-zinc-200 space-y-2 animate-in fade-in duration-200">
-              <div className="font-semibold text-blue-300 text-[11px] uppercase tracking-wider font-mono">
+            <div className="mt-3 p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-xs text-foreground space-y-2 animate-in fade-in duration-200">
+              <div className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] uppercase tracking-wider font-mono">
                 Copilot Analysis ({copilotResponse.intent})
               </div>
-              <div className="whitespace-pre-line leading-relaxed text-zinc-100 font-sans text-xs">
+              <div className="whitespace-pre-line leading-relaxed text-foreground font-sans text-xs">
                 {copilotResponse.answer}
               </div>
             </div>
@@ -366,40 +888,40 @@ export default function QualityPage() {
 
         {/* Automated Recommendations */}
         {quality.recommendations.length > 0 && (
-          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center space-x-2">
-                <Info className="w-4 h-4 text-blue-400" />
-                <h3 className="font-semibold text-sm text-white font-sans">
+                <Info className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="font-semibold text-sm text-foreground font-sans">
                   Automated Quality Recommendations ({quality.recommendations.length})
                 </h3>
               </div>
-              <span className="text-xs text-zinc-500 font-mono">Pre-flight ML validation</span>
+              <span className="text-xs text-muted-foreground font-mono">Pre-flight ML validation</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {quality.recommendations.map((rec, idx) => (
                 <div
                   key={idx}
-                  className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/30 space-y-2"
+                  className="p-4 rounded-xl border border-border bg-muted/30 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-white font-sans">{rec.title}</span>
+                    <span className="font-semibold text-xs text-foreground font-sans">{rec.title}</span>
                     <span
                       className={`text-[10px] font-mono font-medium uppercase px-2 py-0.5 rounded-full ${
                         rec.type === "danger"
-                          ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                          ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
                           : rec.type === "warning"
-                          ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                          : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                       }`}
                     >
                       {rec.type}
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-400 leading-relaxed font-sans">{rec.description}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed font-sans">{rec.description}</p>
                   {rec.action && (
-                    <div className="text-[11px] font-mono text-emerald-400 pt-1">
+                    <div className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 pt-1">
                       Action: {rec.action}
                     </div>
                   )}
@@ -411,27 +933,27 @@ export default function QualityPage() {
 
         {/* Outlier Detection via IQR */}
         {outlierEntries.length > 0 && (
-          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <h3 className="font-semibold text-sm text-white flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="font-semibold text-sm text-foreground flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
                 <span>Numerical Outlier Detection (Interquartile Range Method)</span>
               </h3>
-              <span className="text-xs font-mono text-zinc-500">Boundaries: Q1 - 1.5×IQR / Q3 + 1.5×IQR</span>
+              <span className="text-xs font-mono text-muted-foreground">Boundaries: Q1 - 1.5×IQR / Q3 + 1.5×IQR</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {outlierEntries.map(([col, o]) => (
-                <div key={col} className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/40 space-y-2 text-xs">
+                <div key={col} className="p-3.5 rounded-xl border border-border bg-muted/30 space-y-2 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-mono font-semibold text-zinc-200">{col}</span>
+                    <span className="font-mono font-semibold text-foreground">{col}</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      o.outlier_pct > 3.0 ? "bg-rose-500/20 text-rose-400" : "bg-zinc-800 text-zinc-400"
+                      o.outlier_pct > 3.0 ? "bg-rose-500/20 text-rose-600 dark:text-rose-400" : "bg-muted text-muted-foreground"
                     }`}>
                       {o.outlier_count} outliers ({o.outlier_pct}%)
                     </span>
                   </div>
-                  <div className="text-[11px] font-mono text-zinc-500">
+                  <div className="text-[11px] font-mono text-muted-foreground">
                     Valid Range: [{o.lower_bound} to {o.upper_bound}]
                   </div>
                 </div>
@@ -443,39 +965,40 @@ export default function QualityPage() {
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Missing Values Chart */}
-          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <h3 className="font-semibold text-sm text-white">Missing Values Ratio by Feature (%)</h3>
-              <span className="text-xs font-mono text-zinc-500">Threshold: 0% Ideal</span>
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="font-semibold text-sm text-foreground">Missing Values Ratio by Feature (%)</h3>
+              <span className="text-xs font-mono text-muted-foreground">Threshold: 0% Ideal</span>
             </div>
 
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={missingChartData}>
-                  <CartesianGrid strokeDasharray="2 2" stroke="#27272A" vertical={false} />
+                  <CartesianGrid strokeDasharray="2 2" stroke="currentColor" className="opacity-10" vertical={false} />
                   <XAxis
                     dataKey="name"
-                    stroke="#71717A"
+                    stroke="currentColor"
+                    className="text-muted-foreground"
                     fontSize={11}
                     interval={0}
                     angle={-20}
                     textAnchor="end"
                   />
-                  <YAxis stroke="#71717A" fontSize={11} domain={[0, 100]} unit="%" />
+                  <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={11} domain={[0, 100]} unit="%" />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#101014",
-                      border: "1px solid #27272A",
+                      backgroundColor: "var(--background)",
+                      border: "1px solid var(--border)",
                       borderRadius: "8px",
                       fontSize: "12px",
-                      color: "#FFFFFF",
+                      color: "var(--foreground)",
                     }}
                   />
-                  <Bar dataKey="missingPct" fill="#3B82F6">
+                  <Bar dataKey="missingPct" fill="#10B981">
                     {missingChartData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.missingPct > 20 ? "#EF4444" : entry.missingPct > 0 ? "#F59E0B" : "#3B82F6"}
+                        fill={entry.missingPct > 20 ? "#EF4444" : entry.missingPct > 0 ? "#F59E0B" : "#10B981"}
                       />
                     ))}
                   </Bar>
@@ -485,13 +1008,13 @@ export default function QualityPage() {
           </div>
 
           {/* Feature Distribution Inspector */}
-          <div className="rounded-2xl border border-zinc-800 bg-[#101014] p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <h3 className="font-semibold text-sm text-white">Feature Distribution Inspector</h3>
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="font-semibold text-sm text-foreground">Feature Distribution Inspector</h3>
               <select
                 value={selectedCol}
                 onChange={(e) => setSelectedCol(e.target.value)}
-                className="bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white px-3 py-1.5 focus:outline-none focus:border-blue-500"
+                className="bg-muted border border-border rounded-lg text-xs text-foreground px-3 py-1.5 focus:outline-none focus:border-emerald-500"
               >
                 {Object.keys(quality.missing_summary).map((col) => (
                   <option key={col} value={col}>
@@ -502,24 +1025,24 @@ export default function QualityPage() {
             </div>
 
             {distLoading ? (
-              <div className="h-64 flex items-center justify-center text-xs font-mono text-zinc-500 space-x-2">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              <div className="h-64 flex items-center justify-center text-xs font-mono text-muted-foreground space-x-2">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
                 <span>Computing distribution histograms...</span>
               </div>
             ) : distError ? (
               <div className="h-64 flex flex-col items-center justify-center p-6 text-center space-y-3">
-                <AlertTriangle className="w-6 h-6 text-rose-400" />
-                <div className="text-xs text-rose-300 font-mono">{distError}</div>
+                <AlertTriangle className="w-6 h-6 text-rose-500" />
+                <div className="text-xs text-rose-600 dark:text-rose-300 font-mono">{distError}</div>
                 <button
                   onClick={() => fetchColumnDistribution(selectedCol)}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white border border-zinc-700 transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-card hover:bg-muted text-xs font-semibold text-foreground border border-border transition-colors shadow-sm"
                 >
                   Retry Distribution Profiling
                 </button>
               </div>
             ) : distData?.type === "empty" ? (
-              <div className="h-64 flex flex-col items-center justify-center p-6 text-center space-y-2 text-zinc-500">
-                <AlertCircle className="w-6 h-6 text-zinc-600" />
+              <div className="h-64 flex flex-col items-center justify-center p-6 text-center space-y-2 text-muted-foreground">
+                <AlertCircle className="w-6 h-6 text-muted-foreground" />
                 <div className="text-xs font-mono">No non-null observations in column &apos;{selectedCol}&apos;.</div>
               </div>
             ) : distData?.type === "categorical" ? (
@@ -527,35 +1050,35 @@ export default function QualityPage() {
                 <div className="h-52 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={distData.categories || []}>
-                      <CartesianGrid strokeDasharray="2 2" stroke="#27272A" vertical={false} />
-                      <XAxis dataKey="category" stroke="#71717A" fontSize={10} interval={0} angle={-15} textAnchor="end" />
-                      <YAxis stroke="#71717A" fontSize={11} />
+                      <CartesianGrid strokeDasharray="2 2" stroke="currentColor" className="opacity-10" vertical={false} />
+                      <XAxis dataKey="category" stroke="currentColor" className="text-muted-foreground" fontSize={10} interval={0} angle={-15} textAnchor="end" />
+                      <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={11} />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: "#101014",
-                          border: "1px solid #27272A",
+                          backgroundColor: "var(--background)",
+                          border: "1px solid var(--border)",
                           borderRadius: "8px",
                           fontSize: "12px",
-                          color: "#FFFFFF",
+                          color: "var(--foreground)",
                         }}
                       />
-                      <Bar dataKey="count" fill="#3B82F6" />
+                      <Bar dataKey="count" fill="#10B981" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/80 text-xs">
+                <div className="grid grid-cols-3 gap-2 text-center p-3 rounded-xl bg-muted/40 border border-border text-xs">
                   <div>
-                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Distinct Categories</div>
-                    <div className="font-bold text-white">{distData.unique ?? distData.categories?.length ?? "N/A"}</div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-mono">Distinct Categories</div>
+                    <div className="font-bold text-foreground">{distData.unique ?? distData.categories?.length ?? "N/A"}</div>
                   </div>
                   <div>
-                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Top Category</div>
-                    <div className="font-bold text-blue-400 truncate">{distData.categories?.[0]?.category ?? "N/A"}</div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-mono">Top Category</div>
+                    <div className="font-bold text-emerald-600 dark:text-emerald-400 truncate">{distData.categories?.[0]?.category ?? "N/A"}</div>
                   </div>
                   <div>
-                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Top Category Count</div>
-                    <div className="font-bold text-white">{distData.categories?.[0]?.count ?? "N/A"}</div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-mono">Top Category Count</div>
+                    <div className="font-bold text-foreground">{distData.categories?.[0]?.count ?? "N/A"}</div>
                   </div>
                 </div>
               </div>
@@ -564,16 +1087,16 @@ export default function QualityPage() {
                 <div className="h-52 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={distData.bins || []}>
-                      <CartesianGrid strokeDasharray="2 2" stroke="#27272A" vertical={false} />
-                      <XAxis dataKey="bin" stroke="#71717A" fontSize={10} />
-                      <YAxis stroke="#71717A" fontSize={11} />
+                      <CartesianGrid strokeDasharray="2 2" stroke="currentColor" className="opacity-10" vertical={false} />
+                      <XAxis dataKey="bin" stroke="currentColor" className="text-muted-foreground" fontSize={10} />
+                      <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={11} />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: "#101014",
-                          border: "1px solid #27272A",
+                          backgroundColor: "var(--background)",
+                          border: "1px solid var(--border)",
                           borderRadius: "8px",
                           fontSize: "12px",
-                          color: "#FFFFFF",
+                          color: "var(--foreground)",
                         }}
                       />
                       <Bar dataKey="count" fill="#10B981" />
@@ -581,27 +1104,27 @@ export default function QualityPage() {
                   </ResponsiveContainer>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 text-center p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/80 text-xs">
+                <div className="grid grid-cols-4 gap-2 text-center p-3 rounded-xl bg-muted/40 border border-border text-xs">
                   <div>
-                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Mean</div>
-                    <div className="font-bold text-white">{distData.mean !== undefined ? distData.mean.toFixed(2) : "N/A"}</div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-mono">Mean</div>
+                    <div className="font-bold text-foreground">{distData.mean !== undefined ? distData.mean.toFixed(2) : "N/A"}</div>
                   </div>
                   <div>
-                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Median</div>
-                    <div className="font-bold text-white">{distData.median !== undefined ? distData.median.toFixed(2) : "N/A"}</div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-mono">Median</div>
+                    <div className="font-bold text-foreground">{distData.median !== undefined ? distData.median.toFixed(2) : "N/A"}</div>
                   </div>
                   <div>
-                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Min</div>
-                    <div className="font-bold text-white">{distData.min !== undefined ? distData.min.toFixed(2) : "N/A"}</div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-mono">Min</div>
+                    <div className="font-bold text-foreground">{distData.min !== undefined ? distData.min.toFixed(2) : "N/A"}</div>
                   </div>
                   <div>
-                    <div className="text-zinc-500 text-[10px] uppercase font-mono">Max</div>
-                    <div className="font-bold text-white">{distData.max !== undefined ? distData.max.toFixed(2) : "N/A"}</div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-mono">Max</div>
+                    <div className="font-bold text-foreground">{distData.max !== undefined ? distData.max.toFixed(2) : "N/A"}</div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="h-64 flex items-center justify-center text-xs font-mono text-zinc-500">
+              <div className="h-64 flex items-center justify-center text-xs font-mono text-muted-foreground">
                 Select a column from the dropdown above
               </div>
             )}

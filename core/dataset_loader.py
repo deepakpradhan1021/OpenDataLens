@@ -314,3 +314,336 @@ def load_hf_dataset_via_api(
     }
 
     return df, metadata
+
+
+def load_excel_dataset(
+    file_or_path,
+    filename: str = "upload.xlsx",
+    max_rows: Optional[int] = None
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Safely load an Excel workbook (.xlsx / .xls) into a pandas DataFrame.
+    Automatically parses the first active worksheet and handles headers.
+    """
+    if isinstance(file_or_path, bytes):
+        bio = io.BytesIO(file_or_path)
+    elif hasattr(file_or_path, "read"):
+        content = file_or_path.read()
+        bio = io.BytesIO(content if isinstance(content, bytes) else content.encode("utf-8"))
+    else:
+        with open(file_or_path, "rb") as f:
+            bio = io.BytesIO(f.read())
+
+    try:
+        excel_file = pd.ExcelFile(bio)
+        sheet_name = excel_file.sheet_names[0] if excel_file.sheet_names else "Sheet1"
+        df = pd.read_excel(excel_file, sheet_name=sheet_name, nrows=max_rows)
+    except Exception as e:
+        raise ValueError(f"Failed to parse Excel file: {str(e)}")
+
+    if df.empty:
+        raise ValueError("Excel file contains 0 rows or is empty.")
+
+    df.columns = [str(col).strip() for col in df.columns]
+    metadata = {
+        "id": filename.rsplit(".", 1)[0].lower(),
+        "name": filename,
+        "filename": filename,
+        "rows": int(df.shape[0]),
+        "cols": int(df.shape[1]),
+        "sheet_name": sheet_name,
+        "source": "excel"
+    }
+    return df, metadata
+
+
+def load_json_dataset(
+    file_or_path,
+    filename: str = "upload.json",
+    max_rows: Optional[int] = None
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Load JSON / JSON-Lines tabular data.
+    Supports records arrays `[{...}, ...]`, tabular wrappers `{"data": [...]}`, or key-value objects.
+    """
+    import json
+    if isinstance(file_or_path, bytes):
+        raw_text = file_or_path.decode("utf-8", errors="replace")
+    elif hasattr(file_or_path, "read"):
+        raw_bytes = file_or_path.read()
+        raw_text = raw_bytes.decode("utf-8", errors="replace") if isinstance(raw_bytes, bytes) else str(raw_bytes)
+    else:
+        with open(file_or_path, "r", encoding="utf-8", errors="replace") as f:
+            raw_text = f.read()
+
+    if not raw_text.strip():
+        raise ValueError("The provided JSON file is empty.")
+
+    parsed = None
+    try:
+        parsed = json.loads(raw_text)
+    except Exception as e:
+        # Check if it's JSON Lines (jsonl)
+        try:
+            lines = [json.loads(line) for line in raw_text.strip().splitlines() if line.strip()]
+            if lines:
+                parsed = lines
+        except Exception:
+            raise ValueError(f"Failed to parse JSON file: {str(e)}")
+
+    if isinstance(parsed, list):
+        if not parsed:
+            raise ValueError("JSON file contains an empty array.")
+        df = pd.DataFrame(parsed[:max_rows] if max_rows else parsed)
+    elif isinstance(parsed, dict):
+        # Look for standard tabular wrapper keys
+        for key in ["data", "rows", "records", "items", "dataset", "results"]:
+            if key in parsed and isinstance(parsed[key], list) and len(parsed[key]) > 0:
+                df = pd.DataFrame(parsed[key][:max_rows] if max_rows else parsed[key])
+                break
+        else:
+            try:
+                df = pd.DataFrame.from_dict(parsed)
+            except Exception:
+                df = pd.DataFrame([parsed])
+    else:
+        raise ValueError(f"Unsupported JSON root type: {type(parsed).__name__}. Expected array or object.")
+
+    if df.empty:
+        raise ValueError("Parsed JSON produced an empty dataset.")
+
+    df.columns = [str(col).strip() for col in df.columns]
+    metadata = {
+        "id": filename.rsplit(".", 1)[0].lower(),
+        "name": filename,
+        "filename": filename,
+        "rows": int(df.shape[0]),
+        "cols": int(df.shape[1]),
+        "source": "json"
+    }
+    return df, metadata
+
+
+def load_pdf_dataset(
+    file_or_path,
+    filename: str = "upload.pdf",
+    max_rows: Optional[int] = None
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Extract structured tabular records from PDF documents.
+    Detects delimiter patterns (tabs, pipes, commas, aligned whitespace) across pages.
+    """
+    import pypdf
+    import re
+
+    if isinstance(file_or_path, bytes):
+        bio = io.BytesIO(file_or_path)
+    elif hasattr(file_or_path, "read"):
+        content = file_or_path.read()
+        bio = io.BytesIO(content if isinstance(content, bytes) else content.encode("utf-8"))
+    else:
+        with open(file_or_path, "rb") as f:
+            bio = io.BytesIO(f.read())
+
+    try:
+        reader = pypdf.PdfReader(bio)
+        num_pages = len(reader.pages)
+        if num_pages == 0:
+            raise ValueError("PDF has 0 pages.")
+
+        all_lines = []
+        for p in reader.pages:
+            text = p.extract_text() or ""
+            for line in text.splitlines():
+                line = line.strip()
+                if line:
+                    all_lines.append(line)
+    except Exception as e:
+        raise ValueError(f"Failed to read PDF document: {str(e)}")
+
+    if not all_lines:
+        raise ValueError("Could not extract any readable text from the provided PDF.")
+
+    table_rows = []
+    header = None
+    for line in all_lines:
+        if "\t" in line:
+            parts = [p.strip() for p in line.split("\t") if p.strip()]
+        elif "|" in line:
+            parts = [p.strip() for p in line.split("|") if p.strip()]
+        elif "," in line:
+            parts = [p.strip() for p in line.split(",") if p.strip()]
+        else:
+            parts = [p.strip() for p in re.split(r"\s{2,}", line) if p.strip()]
+
+        if len(parts) >= 2:
+            if header is None:
+                header = parts
+            elif len(parts) == len(header):
+                table_rows.append(parts)
+            elif abs(len(parts) - len(header)) <= 1:
+                if len(parts) < len(header):
+                    parts = parts + [""] * (len(header) - len(parts))
+                else:
+                    parts = parts[:len(header)]
+                table_rows.append(parts)
+
+    if not table_rows or header is None:
+        table_rows = [[i + 1, line] for i, line in enumerate(all_lines[:max_rows] if max_rows else all_lines)]
+        header = ["Line", "Extracted_Text"]
+
+    df = pd.DataFrame(table_rows[:max_rows] if max_rows else table_rows, columns=header)
+    cols = []
+    seen = {}
+    for c in df.columns:
+        c_str = str(c).strip() or "Col"
+        if c_str in seen:
+            seen[c_str] += 1
+            cols.append(f"{c_str}_{seen[c_str]}")
+        else:
+            seen[c_str] = 0
+            cols.append(c_str)
+    df.columns = cols
+
+    for col in df.columns:
+        try:
+            df[col] = pd.to_numeric(df[col])
+        except (ValueError, TypeError):
+            pass
+
+    metadata = {
+        "id": filename.rsplit(".", 1)[0].lower(),
+        "name": filename,
+        "filename": filename,
+        "rows": int(df.shape[0]),
+        "cols": int(df.shape[1]),
+        "pages": num_pages,
+        "source": "pdf"
+    }
+    return df, metadata
+
+
+def load_sql_dataset(
+    file_or_path,
+    filename: str = "upload.sql",
+    max_rows: Optional[int] = None
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Parse SQL dump statements (CREATE TABLE & INSERT INTO) into a pandas DataFrame.
+    """
+    import re
+    if isinstance(file_or_path, bytes):
+        raw_text = file_or_path.decode("utf-8", errors="replace")
+    elif hasattr(file_or_path, "read"):
+        raw_bytes = file_or_path.read()
+        raw_text = raw_bytes.decode("utf-8", errors="replace") if isinstance(raw_bytes, bytes) else str(raw_bytes)
+    else:
+        with open(file_or_path, "r", encoding="utf-8", errors="replace") as f:
+            raw_text = f.read()
+
+    insert_pattern = re.compile(
+        r"INSERT\s+INTO\s+[`\"']?(\w+)[`\"']?\s*(?:\(([^)]+)\))?\s+VALUES\s*([\s\S]+?);",
+        re.IGNORECASE
+    )
+    matches = insert_pattern.findall(raw_text)
+
+    records = []
+    columns = None
+    table_name = "sql_table"
+
+    for tbl, cols_str, values_block in matches:
+        if tbl:
+            table_name = tbl
+        if cols_str and columns is None:
+            columns = [c.strip().strip("`\"' ") for c in cols_str.split(",") if c.strip()]
+
+        tuple_pattern = re.compile(r"\(([^)]+)\)")
+        for tup in tuple_pattern.findall(values_block):
+            vals = []
+            for item in csv.reader([tup], quotechar="'", skipinitialspace=True):
+                for val in item:
+                    v = val.strip().strip("'\"")
+                    if v.upper() == "NULL":
+                        vals.append(None)
+                    else:
+                        try:
+                            if "." in v:
+                                vals.append(float(v))
+                            else:
+                                vals.append(int(v))
+                        except ValueError:
+                            vals.append(v)
+            if vals:
+                records.append(vals)
+
+    if not records:
+        create_pattern = re.compile(r"CREATE\s+TABLE\s+[`\"']?(\w+)[`\"']?\s*\(([\s\S]+?)\);", re.IGNORECASE)
+        create_match = create_pattern.search(raw_text)
+        if create_match:
+            cols_def = create_match.group(2)
+            col_names = []
+            for line in cols_def.splitlines():
+                line = line.strip().rstrip(",")
+                if line and not line.upper().startswith(("PRIMARY", "KEY", "CONSTRAINT", "FOREIGN", "UNIQUE")):
+                    parts = line.split()
+                    if parts:
+                        col_names.append(parts[0].strip("`\"'"))
+            if col_names:
+                df = pd.DataFrame(columns=col_names)
+                metadata = {
+                    "id": filename.rsplit(".", 1)[0].lower(),
+                    "name": filename,
+                    "filename": filename,
+                    "rows": 0,
+                    "cols": len(col_names),
+                    "table_name": create_match.group(1),
+                    "source": "sql"
+                }
+                return df, metadata
+        raise ValueError("Could not parse SQL table or INSERT records. Ensure file contains standard SQL DDL or DML statements.")
+
+    if columns is None:
+        columns = [f"col_{i+1}" for i in range(len(records[0]))]
+    elif len(columns) < len(records[0]):
+        columns = columns + [f"col_{i+1}" for i in range(len(columns), len(records[0]))]
+    elif len(columns) > len(records[0]):
+        columns = columns[:len(records[0])]
+
+    df = pd.DataFrame(records[:max_rows] if max_rows else records, columns=columns)
+    metadata = {
+        "id": filename.rsplit(".", 1)[0].lower(),
+        "name": filename,
+        "filename": filename,
+        "rows": int(df.shape[0]),
+        "cols": int(df.shape[1]),
+        "table_name": table_name,
+        "source": "sql"
+    }
+    return df, metadata
+
+
+def load_uploaded_file(
+    file_or_path,
+    filename: str,
+    max_rows: Optional[int] = None
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Unified ingestion router that inspects file extension and safely parses
+    CSV, Excel (.xlsx, .xls), JSON (.json, .jsonl), PDF tables (.pdf), and SQL dumps (.sql).
+    """
+    fn = filename.lower().strip()
+    if fn.endswith((".csv", ".tsv", ".txt")):
+        return load_csv_dataset(file_or_path, filename=filename, max_rows=max_rows)
+    elif fn.endswith((".xlsx", ".xls")):
+        return load_excel_dataset(file_or_path, filename=filename, max_rows=max_rows)
+    elif fn.endswith((".json", ".jsonl")):
+        return load_json_dataset(file_or_path, filename=filename, max_rows=max_rows)
+    elif fn.endswith(".pdf"):
+        return load_pdf_dataset(file_or_path, filename=filename, max_rows=max_rows)
+    elif fn.endswith(".sql"):
+        return load_sql_dataset(file_or_path, filename=filename, max_rows=max_rows)
+    else:
+        raise ValueError(
+            f"Unsupported file format for '{filename}'. "
+            f"Supported extensions: CSV (.csv), Excel (.xlsx, .xls), JSON (.json), PDF (.pdf), SQL (.sql)."
+        )

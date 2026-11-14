@@ -18,6 +18,8 @@ import {
   ApiErrorType,
   CategorizedError,
   ColdStartStatus,
+  CleanActionResponse,
+  HistoryResponse,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -308,11 +310,15 @@ export const api = {
   },
 
   uploadCSV: async (file: File, sessionId?: string): Promise<DatasetPreviewResponse> => {
+    return api.uploadFile(file, sessionId);
+  },
+
+  uploadFile: async (file: File, sessionId?: string): Promise<DatasetPreviewResponse> => {
     const sid = sessionId || getWorkspaceId();
     const formData = new FormData();
     formData.append("file", file);
     formData.append("session_id", sid);
-    const { data } = await apiClient.post("/datasets/upload-csv", formData, {
+    const { data } = await apiClient.post("/datasets/upload-file", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return data;
@@ -335,10 +341,48 @@ export const api = {
     return data;
   },
 
-  // Quality
+  // Quality & Data Cleaning
   getQualityAnalysis: async (sessionId?: string): Promise<QualityAnalysisResponse> => {
     const sid = sessionId || getWorkspaceId();
     const { data } = await apiClient.get("/quality/analysis", {
+      params: { session_id: sid },
+    });
+    return data;
+  },
+
+  cleanDataset: async (
+    actionType: string,
+    params: Record<string, any>,
+    sessionId?: string
+  ): Promise<CleanActionResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/quality/clean", {
+      session_id: sid,
+      action_type: actionType,
+      params,
+    });
+    return data;
+  },
+
+  undoClean: async (sessionId?: string): Promise<CleanActionResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/quality/undo", {
+      session_id: sid,
+    });
+    return data;
+  },
+
+  redoClean: async (sessionId?: string): Promise<CleanActionResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/quality/redo", {
+      session_id: sid,
+    });
+    return data;
+  },
+
+  getCleanHistory: async (sessionId?: string): Promise<HistoryResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.get("/quality/history", {
       params: { session_id: sid },
     });
     return data;
@@ -509,5 +553,15 @@ export const api = {
   getDatasetCsvUrl: (sessionId?: string) => {
     const sid = sessionId || getWorkspaceId();
     return `${API_BASE_URL}/reports/dataset-csv?session_id=${sid}`;
+  },
+
+  getExcelReportUrl: (sessionId?: string) => {
+    const sid = sessionId || getWorkspaceId();
+    return `${API_BASE_URL}/reports/excel?session_id=${sid}`;
+  },
+
+  getProjectStateUrl: (sessionId?: string) => {
+    const sid = sessionId || getWorkspaceId();
+    return `${API_BASE_URL}/reports/project-state?session_id=${sid}`;
   },
 };

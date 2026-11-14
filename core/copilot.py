@@ -253,7 +253,56 @@ def answer_with_heuristics(
             "suggested_followups": ["Explain model predictions", "View data drift"]
         }
 
-    # 7. General Fallback
+    # 7. Data Cleaning & Transformation Instructions
+    if any(k in q for k in ["undo", "redo", "impute", "deduplicate", "drop column", "transform", "clip"]):
+        ans = (
+            "**OpenDataLens Interactive Cleaning Studio** supports step-by-step transformations with an **Undo / Redo stack**:\n\n"
+            "1. **Impute Missing Values:** Fill numerical gaps with mean/median, or categorical gaps with mode or custom constants.\n"
+            "2. **Deduplicate Records:** Remove identical rows while preserving original order.\n"
+            "3. **Type Casting:** Convert columns between Float, Integer, String, or Categorical.\n"
+            "4. **Outlier Clipping:** Cap extreme anomalies at calculated 1.5× IQR fences.\n"
+            "5. **Drop Columns & Filter Rows:** Prune non-informative features or irrelevant records.\n\n"
+            "Every action creates a checkpoint so you can freely test transformations and undo whenever needed."
+        )
+        return {
+            "answer": ans,
+            "intent": "data_cleaning_guide",
+            "suggested_followups": ["Open Data Quality Studio", "Which columns have missing values?", "Are there any outliers?"]
+        }
+
+    # 8. Visualization Capabilities
+    if any(k in q for k in ["visualize", "chart", "plot", "graph", "histogram", "scatter", "bar"]):
+        ans = (
+            "**OpenDataLens Multi-Chart Visualization Suite (`/visualize`)** provides interactive charts:\n\n"
+            "- **Bar Charts:** Compare category means, sums, or frequencies.\n"
+            "- **Line & Area Charts:** Track numeric trends and sequential distributions.\n"
+            "- **Scatter Plots:** Examine bivariate correlation between continuous variables.\n"
+            "- **Donut / Pie Charts:** Visualize category proportions and market share.\n\n"
+            "You can switch aggregation operators (Mean, Sum, Count, Min, Max) and inspect the underlying aggregated data table in real time."
+        )
+        return {
+            "answer": ans,
+            "intent": "visualization_guide",
+            "suggested_followups": ["Open Visual Analytics", "Explain my dataset"]
+        }
+
+    # 9. Supported File Ingestion Formats
+    if any(k in q for k in ["format", "supported", "file type", "excel", "xlsx", "pdf", "json", "sql"]):
+        ans = (
+            "OpenDataLens natively ingests **multi-format enterprise data** up to 25MB:\n\n"
+            "- **Tabular:** CSV, TSV, TXT (auto-detects delimiters)\n"
+            "- **Spreadsheets:** Excel `.xlsx` and legacy `.xls` (multi-sheet support)\n"
+            "- **Hierarchical Data:** JSON objects, JSON arrays, and JSON Lines (`.jsonl`)\n"
+            "- **Documents:** PDF tables with automatic row alignment (`pypdf`)\n"
+            "- **Databases:** SQL dump files with `INSERT INTO` table extraction"
+        )
+        return {
+            "answer": ans,
+            "intent": "ingestion_guide",
+            "suggested_followups": ["Open Dataset Explorer", "Explain my dataset"]
+        }
+
+    # 10. General Fallback
     summary_parts = []
     if dataset_meta:
         summary_parts.append(f"Loaded dataset: **{dataset_meta.get('name')}** ({dataset_meta.get('rows')} rows).")
@@ -270,6 +319,8 @@ def answer_with_heuristics(
         "- *Which columns have missing values?*\n"
         "- *What should I clean first?*\n"
         "- *Are there any outliers?*\n"
+        "- *How to clean data or undo steps?*\n"
+        "- *How to visualize my data?*\n"
         "- *Explain the best-performing model*\n"
         "- *Which model should I investigate further?*"
     )
@@ -277,5 +328,5 @@ def answer_with_heuristics(
     return {
         "answer": ans,
         "intent": "general_guidance",
-        "suggested_followups": ["Explain my dataset", "What should I clean first?"]
+        "suggested_followups": ["Explain my dataset", "What should I clean first?", "Open Visual Analytics"]
     }

@@ -17,14 +17,18 @@ import {
   Sparkles,
   Trash2,
   RefreshCw,
-  Loader2
+  Loader2,
+  PieChart,
 } from "lucide-react";
+import { Ring } from "@/components/loading-ui/ring";
 import { api, getWorkspaceId, subscribeColdStart } from "@/lib/api";
+import { ThemeToggle } from "./theme-toggle";
 
 const NAV_ITEMS = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Explorer", href: "/explorer", icon: Database },
   { name: "Quality", href: "/quality", icon: ShieldCheck },
+  { name: "Visualize", href: "/visualize", icon: PieChart },
   { name: "ML Studio", href: "/studio", icon: Cpu },
   { name: "Comparison", href: "/comparison", icon: BarChart2 },
   { name: "Data Drift", href: "/drift", icon: Activity },
@@ -121,19 +125,19 @@ export function Navigation() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-[#09090B]/85 backdrop-blur-xl transition-all duration-200">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/85 backdrop-blur-xl transition-all duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-5 xl:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo & Nav */}
         <div className="flex items-center space-x-2 xl:space-x-6">
           <Link href="/" className="flex items-center space-x-2.5 group shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-indigo-600 to-violet-600 flex items-center justify-center shadow-sm shadow-blue-500/25 group-hover:scale-105 transition-transform duration-200">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-700 flex items-center justify-center shadow-sm shadow-emerald-500/20 group-hover:scale-105 transition-transform duration-200">
               <Layers className="w-4 h-4 text-white" />
             </div>
             <div className="flex items-center space-x-2">
-              <span className="font-semibold text-base tracking-tight text-zinc-100 group-hover:text-white transition-colors">
+              <span className="font-semibold text-base tracking-tight text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                 OpenDataLens
               </span>
-              <span className="text-[10px] uppercase font-mono font-medium px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 tracking-wider">
+              <span className="text-[10px] uppercase font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 tracking-wider">
                 BETA
               </span>
             </div>
@@ -150,11 +154,11 @@ export function Navigation() {
                   href={item.href}
                   className={`flex items-center space-x-1 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all duration-150 ${
                     isActive
-                      ? "bg-zinc-800/90 text-white shadow-sm border border-zinc-700/60 font-semibold"
-                      : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40"
+                      ? "bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 shadow-sm border border-emerald-500/30 font-semibold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-blue-400" : "text-zinc-500"}`} />
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`} />
                   <span className="whitespace-nowrap">{item.name}</span>
                 </Link>
               );
@@ -192,7 +196,7 @@ export function Navigation() {
             }
           >
             {apiHealth === "waking" ? (
-              <Loader2 className="w-2.5 h-2.5 text-amber-400 animate-spin" />
+              <Ring className="w-3 h-3 text-amber-400" />
             ) : (
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
@@ -219,28 +223,31 @@ export function Navigation() {
           {activeDatasetName && (
             <Link
               href="/explorer"
-              className="hidden 2xl:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono whitespace-nowrap shrink-0 transition-colors hover:bg-blue-500/15"
+              className="hidden 2xl:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-mono whitespace-nowrap shrink-0 transition-colors hover:bg-emerald-500/20"
               title="Click to view active dataset"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="max-w-[130px] truncate">{activeDatasetName}</span>
             </Link>
           )}
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
 
           {/* Clear Workspace Button */}
           <button
             onClick={handleClearWorkspace}
             disabled={clearing}
-            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-medium whitespace-nowrap shrink-0 transition-colors"
+            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-border hover:border-border/80 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-medium whitespace-nowrap shrink-0 transition-colors"
             title="Clear current workspace and start fresh"
           >
-            <Trash2 className="w-3 h-3 text-zinc-500" />
+            <Trash2 className="w-3 h-3 text-muted-foreground" />
             <span>Reset</span>
           </button>
 
           <Link
             href="/studio"
-            className="hidden xl:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-600/30 whitespace-nowrap shrink-0 transition-all duration-150 active:scale-95"
+            className="hidden xl:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-600/30 whitespace-nowrap shrink-0 transition-all duration-150 active:scale-95"
           >
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
             <span className="whitespace-nowrap">Launch Studio</span>
@@ -249,9 +256,10 @@ export function Navigation() {
 
         {/* Mobile Menu Button */}
         <div className="flex lg:hidden items-center space-x-2">
+          <ThemeToggle />
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-zinc-300 hover:text-white"
+            className="p-2 rounded-lg bg-muted border border-border text-foreground hover:bg-muted/80 transition-colors"
             aria-label="Toggle Menu"
           >
             {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -261,23 +269,23 @@ export function Navigation() {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-zinc-800 bg-[#09090B] px-4 py-3 space-y-2 animate-in slide-in-from-top-2 duration-150">
+        <div className="lg:hidden border-t border-border bg-background/95 backdrop-blur-xl px-4 py-3 space-y-2 animate-in slide-in-from-top-2 duration-150 shadow-lg">
           <div className="flex items-center justify-between pb-1 text-xs">
             <div className="flex items-center space-x-1.5">
               {apiHealth === "waking" ? (
-                <Loader2 className="w-2.5 h-2.5 text-amber-400 animate-spin" />
+                <Ring className="w-3 h-3 text-amber-500" />
               ) : (
                 <span
                   className={`w-2 h-2 rounded-full ${
                     apiHealth === "connected"
-                      ? "bg-emerald-400"
+                      ? "bg-emerald-500"
                       : apiHealth === "checking"
-                      ? "bg-amber-400 animate-ping"
-                      : "bg-rose-400"
+                      ? "bg-amber-500 animate-ping"
+                      : "bg-rose-500"
                   }`}
                 />
               )}
-              <span className="text-zinc-400 font-mono">
+              <span className="text-muted-foreground font-mono">
                 {apiHealth === "connected"
                   ? "API Operational"
                   : apiHealth === "waking"
@@ -289,7 +297,7 @@ export function Navigation() {
               {apiHealth === "disconnected" && (
                 <button
                   onClick={() => checkConnection()}
-                  className="text-[10px] text-blue-400 underline ml-1"
+                  className="text-[10px] text-emerald-600 dark:text-emerald-400 underline ml-1 font-medium"
                 >
                   Retry
                 </button>
@@ -297,7 +305,7 @@ export function Navigation() {
             </div>
             <button
               onClick={handleClearWorkspace}
-              className="text-xs text-zinc-400 hover:text-rose-400 flex items-center space-x-1"
+              className="text-xs text-muted-foreground hover:text-rose-500 flex items-center space-x-1 transition-colors"
             >
               <Trash2 className="w-3 h-3" />
               <span>Clear Workspace</span>
@@ -305,8 +313,8 @@ export function Navigation() {
           </div>
 
           {activeDatasetName && (
-            <div className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-mono text-emerald-400 flex items-center space-x-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-700 dark:text-emerald-300 flex items-center space-x-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="truncate">Active: {activeDatasetName}</span>
             </div>
           )}
@@ -322,11 +330,11 @@ export function Navigation() {
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center space-x-2 p-2.5 rounded-lg text-xs font-medium transition-colors ${
                     isActive
-                      ? "bg-blue-600/15 text-blue-400 border border-blue-500/20 font-semibold"
-                      : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-semibold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className={`w-4 h-4 ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`} />
                   <span>{item.name}</span>
                 </Link>
               );
@@ -337,7 +345,7 @@ export function Navigation() {
             <Link
               href="/studio"
               onClick={() => setMobileMenuOpen(false)}
-              className="w-full flex items-center justify-center space-x-1.5 p-2 rounded-lg bg-blue-600 text-white font-semibold text-xs shadow-sm"
+              className="w-full flex items-center justify-center space-x-1.5 p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-sm shadow-emerald-600/30 transition-colors"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>Launch ML Studio</span>
@@ -349,7 +357,7 @@ export function Navigation() {
       {/* Render Free-Tier Cold Start Banner */}
       {coldStartNotice && (
         <div className="bg-amber-500/10 border-t border-b border-amber-500/20 px-4 py-1.5 text-[11px] sm:text-xs font-mono text-amber-300 flex items-center justify-center space-x-2 animate-in fade-in duration-200">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+          <Ring className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span className="font-medium">{coldStartNotice}</span>
           <span className="text-zinc-500 hidden md:inline">• Render free-tier instances spin down after inactivity</span>
         </div>

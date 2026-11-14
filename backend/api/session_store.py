@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 SESSION_TTL_SECONDS = 7200
 # Job TTL: 1 hour after completion/failure before cleanup
 JOB_TTL_SECONDS = 3600
+# Maximum undo history snapshots per session (guards 512MB RAM budget)
+MAX_HISTORY_SNAPSHOTS = 8
 
 UUID_OR_SLUG_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{8,64}$")
 
@@ -101,6 +103,9 @@ class SessionStore:
                     "model_evaluations": {},
                     "comparison_df": None,
                     "experiments": [],
+                    "history": [],
+                    "future": [],
+                    "last_action": "Initial State",
                     "created_at": now,
                     "updated_at": now,
                     "last_accessed_at": now
@@ -114,15 +119,166 @@ class SessionStore:
         with self._lock:
             session = self.get_or_create_session(session_id)
             session["dataset"] = df
-            session["metadata"] = metadata
+            session["metadata"] = dict(metadata)
             session["quality_analysis"] = None
             session["ml_meta"] = {}
             session["trained_models"] = {}
             session["model_evaluations"] = {}
             session["comparison_df"] = None
+            session["history"] = []
+            session["future"] = []
+            session["last_action"] = f"Mounted {metadata.get('name', 'dataset')}"
             now = time.time()
             session["updated_at"] = now
             session["last_accessed_at"] = now
+
+    def push_checkpoint(self, session_id: str, new_df: pd.DataFrame, action: str) -> Dict[str, Any]:
+        """
+        Record the current state in the undo history stack and apply new transformed DataFrame.
+        Enforces MAX_HISTORY_SNAPSHOTS cap to conserve in-memory RAM.
+        """
+        with self._lock:
+            session = self.get_or_create_session(session_id)
+            current_df = session.get("dataset")
+            current_meta = session.get("metadata") or {}
+
+            if current_df is not None:
+                # Save snapshot of previous state
+                session["history"].append({
+                    "df": current_df.copy(),
+                    "metadata": dict(current_meta),
+                    "action": session.get("last_action", "Transformed data"),
+                    "timestamp": time.time(),
+                    "rows": int(current_df.shape[0]),
+                    "cols": int(current_df.shape[1])
+                })
+                # Trim history stack to prevent memory bloat
+                if len(session["history"]) > MAX_HISTORY_SNAPSHOTS:
+                    session["history"].pop(0)
+
+            session["future"] = []  # Clear redo stack on new action
+            session["dataset"] = new_df
+            updated_meta = dict(current_meta)
+            updated_meta["rows"] = int(new_df.shape[0])
+            updated_meta["cols"] = int(new_df.shape[1])
+            session["metadata"] = updated_meta
+            session["last_action"] = action
+            session["quality_analysis"] = None  # Invalidate cached quality
+
+            now = time.time()
+            session["updated_at"] = now
+            session["last_accessed_at"] = now
+
+            return {
+                "action": action,
+                "rows": int(new_df.shape[0]),
+                "cols": int(new_df.shape[1]),
+                "can_undo": len(session["history"]) > 0,
+                "can_redo": False
+            }
+
+    def undo_checkpoint(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Undo the last data transformation and revert to previous DataFrame snapshot."""
+        with self._lock:
+            if not self.has_session(session_id):
+                return None
+            session = self.get_or_create_session(session_id)
+            if not session["history"]:
+                return None
+
+            current_df = session.get("dataset")
+            current_meta = session.get("metadata") or {}
+            # Push current to redo future stack
+            if current_df is not None:
+                session["future"].append({
+                    "df": current_df.copy(),
+                    "metadata": dict(current_meta),
+                    "action": session.get("last_action", "Current state"),
+                    "timestamp": time.time(),
+                    "rows": int(current_df.shape[0]),
+                    "cols": int(current_df.shape[1])
+                })
+
+            # Pop previous snapshot
+            prev = session["history"].pop()
+            session["dataset"] = prev["df"]
+            session["metadata"] = prev["metadata"]
+            session["last_action"] = f"Reverted to: {prev['action']}"
+            session["quality_analysis"] = None
+
+            now = time.time()
+            session["updated_at"] = now
+            session["last_accessed_at"] = now
+
+            return {
+                "action": session["last_action"],
+                "rows": int(prev["df"].shape[0]),
+                "cols": int(prev["df"].shape[1]),
+                "can_undo": len(session["history"]) > 0,
+                "can_redo": len(session["future"]) > 0
+            }
+
+    def redo_checkpoint(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Redo previously undone data transformation."""
+        with self._lock:
+            if not self.has_session(session_id):
+                return None
+            session = self.get_or_create_session(session_id)
+            if not session["future"]:
+                return None
+
+            current_df = session.get("dataset")
+            current_meta = session.get("metadata") or {}
+            if current_df is not None:
+                session["history"].append({
+                    "df": current_df.copy(),
+                    "metadata": dict(current_meta),
+                    "action": session.get("last_action", "Current state"),
+                    "timestamp": time.time(),
+                    "rows": int(current_df.shape[0]),
+                    "cols": int(current_df.shape[1])
+                })
+
+            nxt = session["future"].pop()
+            session["dataset"] = nxt["df"]
+            session["metadata"] = nxt["metadata"]
+            session["last_action"] = f"Restored: {nxt['action']}"
+            session["quality_analysis"] = None
+
+            now = time.time()
+            session["updated_at"] = now
+            session["last_accessed_at"] = now
+
+            return {
+                "action": session["last_action"],
+                "rows": int(nxt["df"].shape[0]),
+                "cols": int(nxt["df"].shape[1]),
+                "can_undo": len(session["history"]) > 0,
+                "can_redo": len(session["future"]) > 0
+            }
+
+    def get_history(self, session_id: str) -> Dict[str, Any]:
+        """Return history timeline items and undo/redo capabilities."""
+        with self._lock:
+            if not self.has_session(session_id):
+                return {"history": [], "can_undo": False, "can_redo": False, "last_action": None}
+            session = self.get_or_create_session(session_id)
+            items = [
+                {
+                    "step": idx + 1,
+                    "action": h["action"],
+                    "timestamp": h["timestamp"],
+                    "rows": h["rows"],
+                    "cols": h["cols"]
+                }
+                for idx, h in enumerate(session.get("history", []))
+            ]
+            return {
+                "history": items,
+                "can_undo": len(session.get("history", [])) > 0,
+                "can_redo": len(session.get("future", [])) > 0,
+                "last_action": session.get("last_action")
+            }
 
     def get_dataset(self, session_id: str) -> Optional[pd.DataFrame]:
         with self._lock:

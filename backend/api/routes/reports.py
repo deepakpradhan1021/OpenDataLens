@@ -12,7 +12,9 @@ from core.report_generator import (
     generate_html_report,
     generate_json_report,
     generate_markdown_report,
-    export_model_pipeline_bytes
+    export_model_pipeline_bytes,
+    generate_excel_workbook,
+    generate_project_state_json
 )
 from core.evaluator import get_best_model_summary
 
@@ -155,3 +157,54 @@ def download_dataset_csv(session_id: str = "default"):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@router.get("/excel")
+def download_excel_report(session_id: str = "default"):
+    session = store.get_or_create_session(session_id)
+    df = store.get_dataset(session_id)
+    dataset_meta = session.get("metadata") or {}
+    quality_summary = session.get("quality_analysis")
+    eval_dict = session.get("model_evaluations")
+    comp_df = session.get("comparison_df")
+    ml_meta = session.get("ml_meta", {})
+    problem_type = ml_meta.get("problem_type", "classification")
+
+    if not dataset_meta and df is None:
+        raise HTTPException(status_code=400, detail="No active dataset available to export Excel.")
+
+    best_info = None
+    if comp_df is not None and not comp_df.empty:
+        best_name, primary_metric, best_val = get_best_model_summary(comp_df, problem_type=problem_type)
+        best_info = {"name": best_name, "metric": primary_metric, "score": best_val}
+
+    excel_bytes = generate_excel_workbook(
+        df=df,
+        dataset_meta=dataset_meta,
+        quality_summary=quality_summary,
+        model_evaluations=eval_dict,
+        best_model_info=best_info,
+        problem_type=problem_type
+    )
+    filename = f"OpenDataLens_Dossier_{dataset_meta.get('id', 'dataset')}.xlsx"
+
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/project-state")
+def download_project_state(session_id: str = "default"):
+    session = store.get_or_create_session(session_id)
+    dataset_meta = session.get("metadata") or {}
+    json_str = generate_project_state_json(session)
+    filename = f"OpenDataLens_Project_{dataset_meta.get('id', 'workspace')}.json"
+
+    return Response(
+        content=json_str,
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+

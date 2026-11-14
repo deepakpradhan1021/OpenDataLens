@@ -8,8 +8,18 @@ import pandas as pd
 import numpy as np
 
 from backend.api.session_store import store
-from backend.api.models import QualityAnalysisResponse, QualityRecommendation
+from backend.api.models import (
+    QualityAnalysisResponse,
+    QualityRecommendation,
+    CleanActionRequest,
+    CleanActionResponse,
+    UndoRedoRequest,
+    HistoryResponse,
+    HistoryItem
+)
+from backend.api.routes.datasets import build_preview_response
 from core.quality_analyzer import analyze_data_quality, generate_quality_recommendations
+from core.cleaner import apply_cleaning_action
 
 router = APIRouter(prefix="/quality", tags=["Quality"])
 
@@ -97,3 +107,98 @@ def get_column_distribution(
             "unique": int(s.nunique()),
             "categories": cat_data
         }
+
+
+@router.post("/clean", response_model=CleanActionResponse)
+def clean_dataset(req: CleanActionRequest):
+    """Apply an interactive data cleaning action, record snapshot in undo stack, and re-profile."""
+    df = store.get_dataset(req.session_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="No active dataset in session. Load or upload a dataset first.")
+
+    try:
+        cleaned_df, action_msg = apply_cleaning_action(df, req.action_type, req.params)
+        cp_info = store.push_checkpoint(req.session_id, cleaned_df, action_msg)
+        analysis = analyze_data_quality(cleaned_df)
+        store.set_quality_analysis(req.session_id, analysis)
+        meta = store.get_metadata(req.session_id) or {}
+        preview = build_preview_response(cleaned_df, meta, req.session_id)
+
+        return CleanActionResponse(
+            status="success",
+            action=action_msg,
+            rows=int(cleaned_df.shape[0]),
+            cols=int(cleaned_df.shape[1]),
+            can_undo=cp_info["can_undo"],
+            can_redo=cp_info["can_redo"],
+            preview=preview
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/undo", response_model=CleanActionResponse)
+def undo_clean(req: UndoRedoRequest):
+    """Undo the last data transformation and restore previous dataset snapshot."""
+    res = store.undo_checkpoint(req.session_id)
+    if not res:
+        raise HTTPException(status_code=400, detail="No further actions to undo.")
+
+    df = store.get_dataset(req.session_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="No active dataset found after undo.")
+
+    analysis = analyze_data_quality(df)
+    store.set_quality_analysis(req.session_id, analysis)
+    meta = store.get_metadata(req.session_id) or {}
+    preview = build_preview_response(df, meta, req.session_id)
+
+    return CleanActionResponse(
+        status="success",
+        action=res["action"],
+        rows=res["rows"],
+        cols=res["cols"],
+        can_undo=res["can_undo"],
+        can_redo=res["can_redo"],
+        preview=preview
+    )
+
+
+@router.post("/redo", response_model=CleanActionResponse)
+def redo_clean(req: UndoRedoRequest):
+    """Redo previously undone data transformation."""
+    res = store.redo_checkpoint(req.session_id)
+    if not res:
+        raise HTTPException(status_code=400, detail="No further actions to redo.")
+
+    df = store.get_dataset(req.session_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="No active dataset found after redo.")
+
+    analysis = analyze_data_quality(df)
+    store.set_quality_analysis(req.session_id, analysis)
+    meta = store.get_metadata(req.session_id) or {}
+    preview = build_preview_response(df, meta, req.session_id)
+
+    return CleanActionResponse(
+        status="success",
+        action=res["action"],
+        rows=res["rows"],
+        cols=res["cols"],
+        can_undo=res["can_undo"],
+        can_redo=res["can_redo"],
+        preview=preview
+    )
+
+
+@router.get("/history", response_model=HistoryResponse)
+def get_clean_history(session_id: str = "default"):
+    """Fetch timeline of cleaning transformations and undo/redo state."""
+    data = store.get_history(session_id)
+    history_items = [HistoryItem(**item) for item in data.get("history", [])]
+    return HistoryResponse(
+        history=history_items,
+        can_undo=data.get("can_undo", False),
+        can_redo=data.get("can_redo", False),
+        last_action=data.get("last_action")
+    )

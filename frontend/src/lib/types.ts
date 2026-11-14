@@ -297,3 +297,28 @@ export interface ColdStartStatus {
   elapsedSeconds?: number;
 }
 
+export interface CleanActionResponse {
+  status: string;
+  action: string;
+  rows: number;
+  cols: number;
+  can_undo: boolean;
+  can_redo: boolean;
+  preview: DatasetPreviewResponse;
+}
+
+export interface HistoryItem {
+  step: number;
+  action: string;
+  timestamp: number;
+  rows: number;
+  cols: number;
+}
+
+export interface HistoryResponse {
+  history: HistoryItem[];
+  can_undo: boolean;
+  can_redo: boolean;
+  last_action?: string | null;
+}
+
