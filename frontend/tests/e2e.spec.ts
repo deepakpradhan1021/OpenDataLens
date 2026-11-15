@@ -8,6 +8,7 @@ test.describe("OpenDataLens End-to-End Suite", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript((wsId) => {
       window.localStorage.setItem("opendatalens_workspace_id", wsId);
+      window.localStorage.setItem("opendatalens_tour_seen", "true");
     }, SHARED_WORKSPACE_ID);
   });
   test("1. Landing Page renders branding, hero and navigation without fake badges", async ({ page }) => {

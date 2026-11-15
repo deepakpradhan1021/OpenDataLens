@@ -187,7 +187,7 @@ export default function ReportsPage() {
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
                   Workspace Archive
                 </span>
-                <h3 className="font-semibold text-base text-foreground mt-2">Project State Dossier (.json)</h3>
+                <h3 className="font-semibold text-base text-foreground mt-2">Machine-Readable JSON (.json)</h3>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Complete reproducible session snapshot including cleaning lineage, model configurations, and leaderboard telemetry.
