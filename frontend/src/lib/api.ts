@@ -14,6 +14,8 @@ import {
   DriftAnalysisResponse,
   ExperimentRun,
   CopilotResponse,
+  CopilotStatusResponse,
+  ExecuteActionResponse,
   ColumnDistributionResponse,
   ApiErrorType,
   CategorizedError,
@@ -576,12 +578,50 @@ export const api = {
     return data;
   },
 
-  // Copilot
-  queryCopilot: async (query: string, sessionId?: string): Promise<CopilotResponse> => {
+  // Copilot & AI Analyst
+  queryCopilot: async (
+    query: string,
+    sessionId?: string,
+    conversationHistory?: { role: string; content: string }[],
+    shareSampleRows?: boolean,
+    customApiKey?: string,
+    customProvider?: string
+  ): Promise<CopilotResponse> => {
     const sid = sessionId || getWorkspaceId();
-    const { data } = await apiClient.post("/copilot/query", {
-      query,
+    const headers: Record<string, string> = {};
+    if (customApiKey) {
+      headers["X-Custom-API-Key"] = customApiKey;
+    }
+    const { data } = await apiClient.post(
+      "/copilot/query",
+      {
+        query,
+        session_id: sid,
+        conversation_history: conversationHistory,
+        share_sample_rows: Boolean(shareSampleRows),
+        custom_api_key: customApiKey,
+        custom_provider: customProvider || "openai",
+      },
+      { headers }
+    );
+    return data;
+  },
+
+  getCopilotStatus: async (): Promise<CopilotStatusResponse> => {
+    const { data } = await apiClient.get("/copilot/status");
+    return data;
+  },
+
+  executeCopilotAction: async (
+    actionType: string,
+    params: Record<string, any>,
+    sessionId?: string
+  ): Promise<ExecuteActionResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/copilot/execute-action", {
       session_id: sid,
+      action_type: actionType,
+      params,
     });
     return data;
   },

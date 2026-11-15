@@ -191,4 +191,35 @@ test.describe("OpenDataLens End-to-End Suite", () => {
     // Verify Save Checkpoint button in header
     await expect(page.getByTitle("Save current state as a named checkpoint")).toBeVisible();
   });
+
+  test("11. AI Data Analyst Copilot widget opens, displays telemetry status, and supports conversation", async ({ page }) => {
+    await page.goto("/dashboard");
+
+    // Click floating trigger button
+    const trigger = page.getByRole("button", { name: "Toggle AI Analyst Copilot" });
+    await expect(trigger).toBeVisible();
+    await trigger.click({ force: true });
+
+    // Verify Copilot drawer opened
+    await expect(page.getByText("AI Data Analyst")).toBeVisible();
+    await expect(page.getByText("Agent Active")).toBeVisible();
+
+    // Verify Privacy & Model Settings toggle
+    const settingsBtn = page.getByTitle("Privacy & AI Provider Settings");
+    await expect(settingsBtn).toBeVisible();
+    await settingsBtn.click();
+    await expect(page.getByText("Privacy & Model Settings")).toBeVisible();
+    await expect(page.getByText("Share 3 Sample Rows with AI")).toBeVisible();
+
+    // Close settings subpanel
+    await settingsBtn.click();
+
+    // Click suggested prompt chip
+    const promptChip = page.getByRole("button", { name: "Explain this dataset in simple words" });
+    await expect(promptChip).toBeVisible();
+    await promptChip.click();
+
+    // Expect assistant response message
+    await expect(page.getByText(/Dataset Overview:/i)).toBeVisible({ timeout: 15000 });
+  });
 });

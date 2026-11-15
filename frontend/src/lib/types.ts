@@ -275,10 +275,47 @@ export interface ExperimentRun {
   scoreboard: Record<string, any>[];
 }
 
+export interface CopilotProposedAction {
+  id: string;
+  type: string;
+  action_type: string;
+  params: Record<string, any>;
+  description: string;
+  requires_approval: boolean;
+  impact?: string | null;
+}
+
 export interface CopilotResponse {
   answer: string;
   intent: string;
+  provider_used?: string;
+  model?: string | null;
   suggested_followups: string[];
+  proposed_action?: CopilotProposedAction | null;
+  metadata_snapshot?: {
+    name: string;
+    rows: number;
+    cols: number;
+  } | null;
+  technical_details?: Record<string, any> | null;
+}
+
+export interface CopilotStatusResponse {
+  has_openai: boolean;
+  has_groq: boolean;
+  has_gemini: boolean;
+  active_configured_count: number;
+  supports_byok: boolean;
+  fallback_available: boolean;
+}
+
+export interface ExecuteActionResponse {
+  success: boolean;
+  action: string;
+  rows: number;
+  cols: number;
+  can_undo: boolean;
+  message: string;
 }
 
 export type ApiErrorType = "cold_start" | "timeout" | "offline" | "api_error" | "unknown";
