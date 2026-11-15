@@ -20,6 +20,9 @@ import {
   ColdStartStatus,
   CleanActionResponse,
   HistoryResponse,
+  PreviewCleanResponse,
+  NamedCheckpointItem,
+  NamedCheckpointsResponse,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -377,6 +380,63 @@ export const api = {
       session_id: sid,
       action_type: actionType,
       params,
+    });
+    return data;
+  },
+
+  previewClean: async (
+    actionType: string,
+    params: Record<string, any>,
+    sessionId?: string
+  ): Promise<PreviewCleanResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/quality/preview-clean", {
+      session_id: sid,
+      action_type: actionType,
+      params,
+    });
+    return data;
+  },
+
+  createNamedCheckpoint: async (
+    name: string,
+    sessionId?: string
+  ): Promise<{ status: string; message: string; checkpoint: NamedCheckpointItem }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/quality/named-checkpoint", {
+      session_id: sid,
+      name,
+    });
+    return data;
+  },
+
+  getNamedCheckpoints: async (sessionId?: string): Promise<NamedCheckpointsResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.get("/quality/checkpoints", {
+      params: { session_id: sid },
+    });
+    return data;
+  },
+
+  restoreNamedCheckpoint: async (
+    name: string,
+    sessionId?: string
+  ): Promise<CleanActionResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/quality/restore-checkpoint", {
+      session_id: sid,
+      name,
+    });
+    return data;
+  },
+
+  deleteNamedCheckpoint: async (
+    name: string,
+    sessionId?: string
+  ): Promise<{ status: string; message: string }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.delete(`/quality/checkpoints/${encodeURIComponent(name)}`, {
+      params: { session_id: sid },
     });
     return data;
   },

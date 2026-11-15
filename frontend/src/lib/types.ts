@@ -322,3 +322,31 @@ export interface HistoryResponse {
   last_action?: string | null;
 }
 
+export interface PreviewCleanResponse {
+  status: "preview";
+  action_type: string;
+  summary: string;
+  rows_before: number;
+  rows_after: number;
+  cols_before: number;
+  cols_after: number;
+  affected_column?: string | null;
+  sample_before: Record<string, any>[];
+  sample_after: Record<string, any>[];
+  stats_before?: { min: number; max: number; mean: number; null_count: number } | null;
+  stats_after?: { min: number; max: number; mean: number; null_count: number } | null;
+}
+
+export interface NamedCheckpointItem {
+  name: string;
+  timestamp: number;
+  rows: number;
+  cols: number;
+  last_action?: string | null;
+}
+
+export interface NamedCheckpointsResponse {
+  checkpoints: NamedCheckpointItem[];
+  count: number;
+}
+

@@ -15,11 +15,17 @@ from backend.api.models import (
     CleanActionResponse,
     UndoRedoRequest,
     HistoryResponse,
-    HistoryItem
+    HistoryItem,
+    PreviewCleanRequest,
+    PreviewCleanResponse,
+    NamedCheckpointCreateRequest,
+    NamedCheckpointRestoreRequest,
+    NamedCheckpointItem,
+    NamedCheckpointsResponse,
 )
 from backend.api.routes.datasets import build_preview_response
 from core.quality_analyzer import analyze_data_quality, generate_quality_recommendations
-from core.cleaner import apply_cleaning_action
+from core.cleaner import apply_cleaning_action, preview_cleaning_action
 
 router = APIRouter(prefix="/quality", tags=["Quality"])
 
@@ -202,3 +208,82 @@ def get_clean_history(session_id: str = "default"):
         can_redo=data.get("can_redo", False),
         last_action=data.get("last_action")
     )
+
+
+@router.post("/preview-clean", response_model=PreviewCleanResponse)
+def preview_clean_action(req: PreviewCleanRequest):
+    """
+    Execute a non-destructive dry-run preview of a cleaning transformation.
+    Allows users to inspect before-and-after sample records, row counts, and summary.
+    """
+    df = store.get_dataset(req.session_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="No active dataset in session. Load or upload a dataset first.")
+
+    try:
+        preview_data = preview_cleaning_action(df, req.action_type, req.params)
+        return PreviewCleanResponse(**preview_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/named-checkpoint")
+def save_named_checkpoint(req: NamedCheckpointCreateRequest):
+    """Save the current dataset state as a named, recoverable checkpoint."""
+    df = store.get_dataset(req.session_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="No active dataset in session to checkpoint.")
+
+    try:
+        result = store.create_named_checkpoint(req.session_id, req.name)
+        return {
+            "status": "success",
+            "message": f"Saved checkpoint '{req.name}' successfully.",
+            "checkpoint": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/checkpoints", response_model=NamedCheckpointsResponse)
+def list_named_checkpoints(session_id: str = "default"):
+    """List all saved named checkpoints for the workspace session."""
+    cps = store.list_named_checkpoints(session_id)
+    items = [NamedCheckpointItem(**c) for c in cps]
+    return NamedCheckpointsResponse(checkpoints=items, count=len(items))
+
+
+@router.post("/restore-checkpoint", response_model=CleanActionResponse)
+def restore_named_checkpoint(req: NamedCheckpointRestoreRequest):
+    """Restore dataset to a designated named checkpoint."""
+    try:
+        res = store.restore_named_checkpoint(req.session_id, req.name)
+        df = store.get_dataset(req.session_id)
+        if df is None:
+            raise HTTPException(status_code=404, detail="Dataset not found after restoring checkpoint.")
+
+        analysis = analyze_data_quality(df)
+        store.set_quality_analysis(req.session_id, analysis)
+        meta = store.get_metadata(req.session_id) or {}
+        preview = build_preview_response(df, meta, req.session_id)
+
+        return CleanActionResponse(
+            status="success",
+            action=res["action"],
+            rows=res["rows"],
+            cols=res["cols"],
+            can_undo=res["can_undo"],
+            can_redo=res["can_redo"],
+            preview=preview
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/checkpoints/{name}")
+def delete_named_checkpoint(name: str, session_id: str = "default"):
+    """Delete a saved checkpoint by name."""
+    success = store.delete_named_checkpoint(session_id, name)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Checkpoint '{name}' not found.")
+    return {"status": "success", "message": f"Deleted checkpoint '{name}'."}

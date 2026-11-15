@@ -205,3 +205,47 @@ class HistoryResponse(BaseModel):
     can_redo: bool
     last_action: Optional[str] = None
 
+
+class PreviewCleanRequest(BaseModel):
+    session_id: str = "default"
+    action_type: str
+    params: Dict[str, Any] = {}
+
+
+class PreviewCleanResponse(BaseModel):
+    status: str = "preview"
+    action_type: str
+    summary: str
+    rows_before: int
+    rows_after: int
+    cols_before: int
+    cols_after: int
+    affected_column: Optional[str] = None
+    sample_before: List[Dict[str, Any]] = []
+    sample_after: List[Dict[str, Any]] = []
+    stats_before: Optional[Dict[str, Any]] = None
+    stats_after: Optional[Dict[str, Any]] = None
+
+
+class NamedCheckpointCreateRequest(BaseModel):
+    session_id: str = "default"
+    name: str
+
+
+class NamedCheckpointRestoreRequest(BaseModel):
+    session_id: str = "default"
+    name: str
+
+
+class NamedCheckpointItem(BaseModel):
+    name: str
+    timestamp: float
+    rows: int
+    cols: int
+    last_action: Optional[str] = None
+
+
+class NamedCheckpointsResponse(BaseModel):
+    checkpoints: List[NamedCheckpointItem]
+    count: int
+

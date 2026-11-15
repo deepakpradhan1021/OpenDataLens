@@ -105,6 +105,7 @@ class SessionStore:
                     "experiments": [],
                     "history": [],
                     "future": [],
+                    "named_checkpoints": {},
                     "last_action": "Initial State",
                     "created_at": now,
                     "updated_at": now,
@@ -279,6 +280,120 @@ class SessionStore:
                 "can_redo": len(session.get("future", [])) > 0,
                 "last_action": session.get("last_action")
             }
+
+    def create_named_checkpoint(self, session_id: str, name: str) -> Dict[str, Any]:
+        """Save a persistent named snapshot of the current DataFrame state."""
+        with self._lock:
+            session = self.get_or_create_session(session_id)
+            df = session.get("dataset")
+            if df is None:
+                raise ValueError("No active dataset in session to checkpoint.")
+
+            clean_name = name.strip()
+            if not clean_name or len(clean_name) > 60:
+                raise ValueError("Checkpoint name must be between 1 and 60 characters.")
+
+            if "named_checkpoints" not in session:
+                session["named_checkpoints"] = {}
+
+            # Limit to 5 named checkpoints per session to guard memory
+            if len(session["named_checkpoints"]) >= 5 and clean_name not in session["named_checkpoints"]:
+                oldest_key = min(session["named_checkpoints"].keys(), key=lambda k: session["named_checkpoints"][k]["timestamp"])
+                del session["named_checkpoints"][oldest_key]
+
+            meta = session.get("metadata") or {}
+            now = time.time()
+            session["named_checkpoints"][clean_name] = {
+                "name": clean_name,
+                "df": df.copy(),
+                "metadata": dict(meta),
+                "timestamp": now,
+                "rows": int(df.shape[0]),
+                "cols": int(df.shape[1]),
+                "last_action": session.get("last_action", "Saved checkpoint")
+            }
+            session["last_accessed_at"] = now
+            return {
+                "name": clean_name,
+                "rows": int(df.shape[0]),
+                "cols": int(df.shape[1]),
+                "timestamp": now,
+                "last_action": session.get("last_action")
+            }
+
+    def restore_named_checkpoint(self, session_id: str, name: str) -> Dict[str, Any]:
+        """Restore dataset to a previously saved named checkpoint."""
+        with self._lock:
+            session = self.get_or_create_session(session_id)
+            cps = session.get("named_checkpoints", {})
+            if name not in cps:
+                raise ValueError(f"Named checkpoint '{name}' not found.")
+
+            cp = cps[name]
+            current_df = session.get("dataset")
+            current_meta = session.get("metadata") or {}
+
+            # Push current state to undo history before restoring
+            if current_df is not None:
+                session["history"].append({
+                    "df": current_df.copy(),
+                    "metadata": dict(current_meta),
+                    "action": session.get("last_action", "Pre-restore state"),
+                    "timestamp": time.time(),
+                    "rows": int(current_df.shape[0]),
+                    "cols": int(current_df.shape[1])
+                })
+                if len(session["history"]) > MAX_HISTORY_SNAPSHOTS:
+                    session["history"].pop(0)
+
+            session["future"] = []
+            session["dataset"] = cp["df"].copy()
+            session["metadata"] = dict(cp["metadata"])
+            session["last_action"] = f"Restored checkpoint: {name}"
+            session["quality_analysis"] = None
+
+            now = time.time()
+            session["updated_at"] = now
+            session["last_accessed_at"] = now
+
+            return {
+                "action": session["last_action"],
+                "name": name,
+                "rows": int(cp["df"].shape[0]),
+                "cols": int(cp["df"].shape[1]),
+                "can_undo": len(session["history"]) > 0,
+                "can_redo": False
+            }
+
+    def list_named_checkpoints(self, session_id: str) -> List[Dict[str, Any]]:
+        """Return list of all saved named checkpoints for the session."""
+        with self._lock:
+            if not self.has_session(session_id):
+                return []
+            session = self.get_or_create_session(session_id)
+            cps = session.get("named_checkpoints", {})
+            return [
+                {
+                    "name": cp["name"],
+                    "timestamp": cp["timestamp"],
+                    "rows": cp["rows"],
+                    "cols": cp["cols"],
+                    "last_action": cp.get("last_action")
+                }
+                for cp in sorted(cps.values(), key=lambda x: x["timestamp"], reverse=True)
+            ]
+
+    def delete_named_checkpoint(self, session_id: str, name: str) -> bool:
+        """Delete a named checkpoint from the session."""
+        with self._lock:
+            if not self.has_session(session_id):
+                return False
+            session = self.get_or_create_session(session_id)
+            cps = session.get("named_checkpoints", {})
+            if name in cps:
+                del cps[name]
+                return True
+            return False
 
     def get_dataset(self, session_id: str) -> Optional[pd.DataFrame]:
         with self._lock:

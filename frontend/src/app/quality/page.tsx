@@ -28,6 +28,14 @@ import {
   Trash2,
   Filter,
   History,
+  Bookmark,
+  BookmarkCheck,
+  ArrowUpDown,
+  Scale,
+  Eye,
+  X,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 import {
   BarChart,
@@ -45,6 +53,8 @@ import {
   CopilotResponse,
   ColumnDistributionResponse,
   HistoryItem,
+  PreviewCleanResponse,
+  NamedCheckpointItem,
 } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 
@@ -64,7 +74,9 @@ export default function QualityPage() {
   const [copilotResponse, setCopilotResponse] = useState<CopilotResponse | null>(null);
 
   // Interactive Cleaning Studio State
-  const [activeCleanTool, setActiveCleanTool] = useState<"impute" | "duplicates" | "type" | "outliers" | "drop" | "filter">("impute");
+  const [activeCleanTool, setActiveCleanTool] = useState<
+    "impute" | "duplicates" | "type" | "outliers" | "sort" | "normalize" | "drop" | "filter"
+  >("impute");
   const [cleaningLoading, setCleaningLoading] = useState(false);
   const [cleaningStatus, setCleaningStatus] = useState<string | null>(null);
   const [cleaningError, setCleaningError] = useState<string | null>(null);
@@ -82,8 +94,17 @@ export default function QualityPage() {
   const [targetType, setTargetType] = useState("numeric");
 
   const [outlierCol, setOutlierCol] = useState("");
+  const [outlierActionType, setOutlierActionType] = useState<"clip" | "remove">("clip");
+  const [outlierMethod, setOutlierMethod] = useState("iqr");
+  const [outlierThreshold, setOutlierThreshold] = useState(1.5);
   const [lowerQuantile, setLowerQuantile] = useState(0.01);
   const [upperQuantile, setUpperQuantile] = useState(0.99);
+
+  const [sortCol, setSortCol] = useState("");
+  const [sortAscending, setSortAscending] = useState(true);
+
+  const [normalizeCol, setNormalizeCol] = useState("");
+  const [normalizeMethod, setNormalizeMethod] = useState("minmax");
 
   const [dropCol, setDropCol] = useState("");
 
@@ -91,12 +112,33 @@ export default function QualityPage() {
   const [filterOperator, setFilterOperator] = useState("==");
   const [filterVal, setFilterVal] = useState("");
 
+  // Dry-run preview state
+  const [previewData, setPreviewData] = useState<PreviewCleanResponse | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ actionType: string; params: Record<string, any> } | null>(null);
+
+  // Named Checkpoints state
+  const [checkpoints, setCheckpoints] = useState<NamedCheckpointItem[]>([]);
+  const [checkpointName, setCheckpointName] = useState("");
+  const [showCheckpointModal, setShowCheckpointModal] = useState(false);
+  const [checkpointLoading, setCheckpointLoading] = useState(false);
+  const [activeHistoryTab, setActiveHistoryTab] = useState<"history" | "checkpoints">("history");
+
   const refreshHistory = useCallback(async () => {
     try {
       const res = await api.getCleanHistory();
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       setHistoryItems(res.history);
+    } catch {
+      // Non-blocking
+    }
+  }, []);
+
+  const refreshCheckpoints = useCallback(async () => {
+    try {
+      const res = await api.getNamedCheckpoints();
+      setCheckpoints(res.checkpoints);
     } catch {
       // Non-blocking
     }
@@ -116,10 +158,13 @@ export default function QualityPage() {
         if (!imputeCol) setImputeCol(cols[0]);
         if (!typeCol) setTypeCol(cols[0]);
         if (!outlierCol) setOutlierCol(q.column_types.numeric[0] || cols[0]);
+        if (!sortCol) setSortCol(cols[0]);
+        if (!normalizeCol) setNormalizeCol(q.column_types.numeric[0] || cols[0]);
         if (!dropCol) setDropCol(cols[0]);
         if (!filterCol) setFilterCol(cols[0]);
       }
       refreshHistory();
+      refreshCheckpoints();
     } catch (e: any) {
       console.error(e);
       const cat = categorizeApiError(e);
@@ -133,7 +178,7 @@ export default function QualityPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCol, imputeCol, typeCol, outlierCol, dropCol, filterCol, refreshHistory]);
+  }, [selectedCol, imputeCol, typeCol, outlierCol, sortCol, normalizeCol, dropCol, filterCol, refreshHistory, refreshCheckpoints]);
 
   useEffect(() => {
     fetchQuality();
@@ -217,6 +262,77 @@ export default function QualityPage() {
       setCleaningError(e.response?.data?.detail || "Failed to redo transformation.");
     } finally {
       setCleaningLoading(false);
+    }
+  };
+
+  const handlePreviewCleanAction = async (actionType: string, params: Record<string, any>) => {
+    setPreviewLoading(true);
+    setCleaningError(null);
+    try {
+      const preview = await api.previewClean(actionType, params);
+      setPreviewData(preview);
+      setPendingAction({ actionType, params });
+    } catch (e: any) {
+      console.error(e);
+      const cat = categorizeApiError(e);
+      setCleaningError(cat.message || "Failed to generate dry-run preview.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleCommitPreview = async () => {
+    if (!pendingAction) return;
+    const actionToApply = { ...pendingAction };
+    setPreviewData(null);
+    setPendingAction(null);
+    await handleApplyCleanAction(actionToApply.actionType, actionToApply.params);
+  };
+
+  const handleSaveCheckpoint = async () => {
+    if (!checkpointName.trim()) return;
+    setCheckpointLoading(true);
+    setCleaningError(null);
+    try {
+      await api.createNamedCheckpoint(checkpointName.trim());
+      setCleaningStatus(`Saved checkpoint: '${checkpointName.trim()}'`);
+      setCheckpointName("");
+      setShowCheckpointModal(false);
+      await refreshCheckpoints();
+    } catch (e: any) {
+      console.error(e);
+      const cat = categorizeApiError(e);
+      setCleaningError(cat.message || "Failed to save named checkpoint.");
+    } finally {
+      setCheckpointLoading(false);
+    }
+  };
+
+  const handleRestoreCheckpoint = async (name: string) => {
+    setCheckpointLoading(true);
+    setCleaningError(null);
+    try {
+      const res = await api.restoreNamedCheckpoint(name);
+      setCleaningStatus(`Restored checkpoint: ${name}`);
+      setCanUndo(res.can_undo);
+      setCanRedo(res.can_redo);
+      await fetchQuality();
+      await refreshCheckpoints();
+    } catch (e: any) {
+      console.error(e);
+      const cat = categorizeApiError(e);
+      setCleaningError(cat.message || "Failed to restore named checkpoint.");
+    } finally {
+      setCheckpointLoading(false);
+    }
+  };
+
+  const handleDeleteCheckpoint = async (name: string) => {
+    try {
+      await api.deleteNamedCheckpoint(name);
+      await refreshCheckpoints();
+    } catch (e: any) {
+      console.error(e);
     }
   };
 
@@ -338,7 +454,7 @@ export default function QualityPage() {
           </div>
 
           <div className="flex items-center space-x-2.5">
-            {/* Undo / Redo Toolbar */}
+            {/* Undo / Redo / History / Checkpoints Toolbar */}
             <div className="flex items-center p-1 rounded-xl bg-card border border-border shadow-sm space-x-1">
               <button
                 onClick={handleUndo}
@@ -358,12 +474,43 @@ export default function QualityPage() {
               </button>
               <div className="w-[1px] h-4 bg-border mx-1" />
               <button
-                onClick={() => setShowHistoryModal(!showHistoryModal)}
-                className="flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                onClick={() => {
+                  setShowHistoryModal(!showHistoryModal);
+                  setActiveHistoryTab("history");
+                }}
+                className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-mono transition-colors ${
+                  showHistoryModal && activeHistoryTab === "history"
+                    ? "bg-emerald-600/15 text-emerald-600 dark:text-emerald-400 font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
                 title="View transformation history"
               >
                 <History className="w-3.5 h-3.5" />
                 <span>{historyItems.length}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowHistoryModal(!showHistoryModal);
+                  setActiveHistoryTab("checkpoints");
+                }}
+                className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-mono transition-colors ${
+                  showHistoryModal && activeHistoryTab === "checkpoints"
+                    ? "bg-emerald-600/15 text-emerald-600 dark:text-emerald-400 font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+                title="Named checkpoints"
+              >
+                <Bookmark className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>{checkpoints.length}</span>
+              </button>
+              <div className="w-[1px] h-4 bg-border mx-1" />
+              <button
+                onClick={() => setShowCheckpointModal(true)}
+                className="flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                title="Save current state as a named checkpoint"
+              >
+                <BookmarkCheck className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Save State</span>
               </button>
             </div>
 
@@ -378,14 +525,86 @@ export default function QualityPage() {
           </div>
         </div>
 
-        {/* History Modal / Drawer */}
+        {/* Save Checkpoint Modal */}
+        {showCheckpointModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-border">
+                <div className="flex items-center space-x-2">
+                  <BookmarkCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="font-semibold text-sm text-foreground">Save Named Checkpoint</h3>
+                </div>
+                <button
+                  onClick={() => setShowCheckpointModal(false)}
+                  className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Snapshot the current dataset state ({quality.overview.total_rows.toLocaleString()} rows × {quality.overview.total_cols} cols) so you can return to it anytime.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">Checkpoint Name</label>
+                <input
+                  type="text"
+                  value={checkpointName}
+                  onChange={(e) => setCheckpointName(e.target.value)}
+                  placeholder="e.g. Pre-Outlier Cleanup, Scaled Features"
+                  maxLength={60}
+                  className="w-full bg-background border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCheckpointModal(false)}
+                  className="px-3.5 py-2 rounded-xl border border-border text-xs font-medium text-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCheckpoint}
+                  disabled={!checkpointName.trim() || checkpointLoading}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center space-x-1.5"
+                >
+                  {checkpointLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  <span>Save Snapshot</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* History / Checkpoints Drawer */}
         {showHistoryModal && (
-          <div className="p-4 rounded-2xl border border-border bg-card shadow-lg space-y-3 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <span className="text-xs font-semibold text-foreground flex items-center space-x-1.5">
-                <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Data Transformation History Timeline</span>
-              </span>
+          <div className="p-4 rounded-2xl border border-border bg-card shadow-lg space-y-4 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setActiveHistoryTab("history")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                    activeHistoryTab === "history"
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Timeline History ({historyItems.length})</span>
+                </button>
+                <button
+                  onClick={() => setActiveHistoryTab("checkpoints")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                    activeHistoryTab === "checkpoints"
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Bookmark className="w-3.5 h-3.5" />
+                  <span>Named Checkpoints ({checkpoints.length}/5)</span>
+                </button>
+              </div>
               <button
                 onClick={() => setShowHistoryModal(false)}
                 className="text-xs text-muted-foreground hover:text-foreground"
@@ -393,24 +612,73 @@ export default function QualityPage() {
                 Close
               </button>
             </div>
-            {historyItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-2">No transformations recorded yet. Use the Data Cleaning Studio below to clean and transform columns.</p>
+
+            {activeHistoryTab === "history" ? (
+              historyItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">No transformations recorded yet. Use the Data Cleaning Studio below to clean and transform columns.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {historyItems.map((item) => (
+                    <div key={item.step} className="p-2.5 rounded-lg bg-muted/40 border border-border/80 text-xs flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="font-semibold text-foreground">Step {item.step}: {item.action}</span>
+                        <div className="text-[11px] font-mono text-muted-foreground">
+                          {item.rows.toLocaleString()} rows × {item.cols} cols
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {new Date(item.timestamp * 1000).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )
             ) : (
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {historyItems.map((item) => (
-                  <div key={item.step} className="p-2.5 rounded-lg bg-muted/40 border border-border/80 text-xs flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <span className="font-semibold text-foreground">Step {item.step}: {item.action}</span>
-                      <div className="text-[11px] font-mono text-muted-foreground">
-                        {item.rows.toLocaleString()} rows × {item.cols} cols
+              checkpoints.length === 0 ? (
+                <div className="text-center py-4 space-y-2">
+                  <Bookmark className="w-6 h-6 text-muted-foreground mx-auto opacity-50" />
+                  <p className="text-xs text-muted-foreground">No named checkpoints saved yet.</p>
+                  <button
+                    onClick={() => setShowCheckpointModal(true)}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500"
+                  >
+                    Save First Checkpoint
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {checkpoints.map((cp) => (
+                    <div key={cp.name} className="p-3 rounded-xl bg-muted/40 border border-border flex items-center justify-between text-xs">
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-foreground flex items-center space-x-1.5">
+                          <BookmarkCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>{cp.name}</span>
+                        </div>
+                        <div className="text-[11px] font-mono text-muted-foreground">
+                          {cp.rows.toLocaleString()} rows × {cp.cols} cols &bull; {new Date(cp.timestamp * 1000).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleRestoreCheckpoint(cp.name)}
+                          disabled={checkpointLoading}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center space-x-1 disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Restore</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCheckpoint(cp.name)}
+                          className="p-1 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-muted"
+                          title="Delete checkpoint"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
-                    <span className="text-[10px] font-mono text-muted-foreground">
-                      {new Date(item.timestamp * 1000).toLocaleTimeString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )
             )}
           </div>
         )}
@@ -490,7 +758,9 @@ export default function QualityPage() {
                 { id: "impute", label: "Impute Missing" },
                 { id: "duplicates", label: "Deduplicate" },
                 { id: "type", label: "Cast Type" },
-                { id: "outliers", label: "Clip Outliers" },
+                { id: "outliers", label: "Outliers" },
+                { id: "sort", label: "Sort Rows" },
+                { id: "normalize", label: "Normalize" },
                 { id: "drop", label: "Drop Column" },
                 { id: "filter", label: "Filter Rows" },
               ].map((t) => (
@@ -559,20 +829,36 @@ export default function QualityPage() {
                   )}
                 </div>
 
-                <button
-                  onClick={() =>
-                    handleApplyCleanAction("impute_missing", {
-                      column: imputeCol,
-                      strategy: imputeStrategy,
-                      constant_value: imputeStrategy === "constant" ? imputeConstant : undefined,
-                    })
-                  }
-                  disabled={cleaningLoading}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
-                >
-                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                  <span>Apply Imputation</span>
-                </button>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() =>
+                      handlePreviewCleanAction("impute_missing", {
+                        column: imputeCol,
+                        strategy: imputeStrategy,
+                        constant_value: imputeStrategy === "constant" ? imputeConstant : undefined,
+                      })
+                    }
+                    disabled={previewLoading || cleaningLoading}
+                    className="px-3.5 py-2 rounded-lg bg-card border border-border hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                  >
+                    {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    <span>Preview Imputation</span>
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleApplyCleanAction("impute_missing", {
+                        column: imputeCol,
+                        strategy: imputeStrategy,
+                        constant_value: imputeStrategy === "constant" ? imputeConstant : undefined,
+                      })
+                    }
+                    disabled={cleaningLoading}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                  >
+                    {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    <span>Apply Imputation</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -582,14 +868,24 @@ export default function QualityPage() {
                 <p className="text-xs text-muted-foreground">
                   Current dataset contains <strong className="text-foreground">{quality.overview.duplicate_rows}</strong> duplicate rows ({quality.overview.duplicate_pct}%). Deduplication preserves the first occurrence of each row.
                 </p>
-                <button
-                  onClick={() => handleApplyCleanAction("remove_duplicates", { keep: "first" })}
-                  disabled={cleaningLoading || quality.overview.duplicate_rows === 0}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
-                >
-                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
-                  <span>Remove Duplicate Rows</span>
-                </button>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() => handlePreviewCleanAction("remove_duplicates", { keep: "first" })}
+                    disabled={previewLoading || cleaningLoading || quality.overview.duplicate_rows === 0}
+                    className="px-3.5 py-2 rounded-lg bg-card border border-border hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    <span>Preview Deduplication</span>
+                  </button>
+                  <button
+                    onClick={() => handleApplyCleanAction("remove_duplicates", { keep: "first" })}
+                    disabled={cleaningLoading || quality.overview.duplicate_rows === 0}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
+                    <span>Remove Duplicate Rows</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -627,20 +923,51 @@ export default function QualityPage() {
                     </select>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleApplyCleanAction("convert_dtype", { column: typeCol, target_dtype: targetType })}
-                  disabled={cleaningLoading}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
-                >
-                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sliders className="w-3.5 h-3.5" />}
-                  <span>Convert Column Type</span>
-                </button>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() => handlePreviewCleanAction("convert_dtype", { column: typeCol, target_dtype: targetType })}
+                    disabled={previewLoading || cleaningLoading}
+                    className="px-3.5 py-2 rounded-lg bg-card border border-border hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                  >
+                    {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    <span>Preview Type Cast</span>
+                  </button>
+                  <button
+                    onClick={() => handleApplyCleanAction("convert_dtype", { column: typeCol, target_dtype: targetType })}
+                    disabled={cleaningLoading}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                  >
+                    {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sliders className="w-3.5 h-3.5" />}
+                    <span>Convert Column Type</span>
+                  </button>
+                </div>
               </div>
             )}
 
             {activeCleanTool === "outliers" && (
               <div className="space-y-3">
-                <div className="text-xs font-medium text-foreground">Winsorize / Clip Numerical Outliers</div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="text-xs font-medium text-foreground">Detect and Handle Outliers</div>
+                  <div className="flex items-center p-0.5 rounded-lg bg-card border border-border text-xs">
+                    <button
+                      onClick={() => setOutlierActionType("clip")}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                        outlierActionType === "clip" ? "bg-emerald-600 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Clip / Winsorize (Preserve Rows)
+                    </button>
+                    <button
+                      onClick={() => setOutlierActionType("remove")}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                        outlierActionType === "remove" ? "bg-emerald-600 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Drop Outlier Rows
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="text-[11px] text-muted-foreground block mb-1">Numeric Column</label>
@@ -654,45 +981,226 @@ export default function QualityPage() {
                       ))}
                     </select>
                   </div>
+
+                  {outlierActionType === "clip" ? (
+                    <>
+                      <div>
+                        <label className="text-[11px] text-muted-foreground block mb-1">Lower Quantile ({lowerQuantile})</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.0"
+                          max="0.4"
+                          value={lowerQuantile}
+                          onChange={(e) => setLowerQuantile(parseFloat(e.target.value) || 0.01)}
+                          className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-muted-foreground block mb-1">Upper Quantile ({upperQuantile})</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.6"
+                          max="1.0"
+                          value={upperQuantile}
+                          onChange={(e) => setUpperQuantile(parseFloat(e.target.value) || 0.99)}
+                          className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="text-[11px] text-muted-foreground block mb-1">Detection Method</label>
+                        <select
+                          value={outlierMethod}
+                          onChange={(e) => setOutlierMethod(e.target.value)}
+                          className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="iqr">Interquartile Range (IQR)</option>
+                          <option value="zscore">Z-Score Standard Deviation</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-muted-foreground block mb-1">
+                          Threshold ({outlierMethod === "iqr" ? "k × IQR, e.g. 1.5" : "k × σ, e.g. 3.0"})
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="5.0"
+                          value={outlierThreshold}
+                          onChange={(e) => setOutlierThreshold(parseFloat(e.target.value) || 1.5)}
+                          className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() => {
+                      if (outlierActionType === "clip") {
+                        handlePreviewCleanAction("clip_outliers", {
+                          column: outlierCol,
+                          lower_quantile: lowerQuantile,
+                          upper_quantile: upperQuantile,
+                        });
+                      } else {
+                        handlePreviewCleanAction("remove_outliers", {
+                          column: outlierCol,
+                          method: outlierMethod,
+                          threshold: outlierThreshold,
+                        });
+                      }
+                    }}
+                    disabled={previewLoading || cleaningLoading || numericColumns.length === 0}
+                    className="px-3.5 py-2 rounded-lg bg-card border border-border hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    <span>Preview Outliers</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (outlierActionType === "clip") {
+                        handleApplyCleanAction("clip_outliers", {
+                          column: outlierCol,
+                          lower_quantile: lowerQuantile,
+                          upper_quantile: upperQuantile,
+                        });
+                      } else {
+                        handleApplyCleanAction("remove_outliers", {
+                          column: outlierCol,
+                          method: outlierMethod,
+                          threshold: outlierThreshold,
+                        });
+                      }
+                    }}
+                    disabled={cleaningLoading || numericColumns.length === 0}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    <span>{outlierActionType === "clip" ? "Clip Outliers" : "Drop Outlier Rows"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeCleanTool === "sort" && (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-foreground">Sort Dataset Rows Deterministically</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
                   <div>
-                    <label className="text-[11px] text-muted-foreground block mb-1">Lower Quantile ({lowerQuantile})</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.0"
-                      max="0.4"
-                      value={lowerQuantile}
-                      onChange={(e) => setLowerQuantile(parseFloat(e.target.value) || 0.01)}
+                    <label className="text-[11px] text-muted-foreground block mb-1">Column to Sort By</label>
+                    <select
+                      value={sortCol}
+                      onChange={(e) => setSortCol(e.target.value)}
                       className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
-                    />
+                    >
+                      {allColumns.map((col) => (
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
-                    <label className="text-[11px] text-muted-foreground block mb-1">Upper Quantile ({upperQuantile})</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.6"
-                      max="1.0"
-                      value={upperQuantile}
-                      onChange={(e) => setUpperQuantile(parseFloat(e.target.value) || 0.99)}
-                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
-                    />
+                    <label className="text-[11px] text-muted-foreground block mb-1">Direction</label>
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setSortAscending(true)}
+                        className={`p-2 rounded-lg text-xs font-semibold border transition-all ${
+                          sortAscending
+                            ? "bg-emerald-600 text-white border-emerald-500 shadow-sm"
+                            : "bg-card border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Ascending (A-Z)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSortAscending(false)}
+                        className={`p-2 rounded-lg text-xs font-semibold border transition-all ${
+                          !sortAscending
+                            ? "bg-emerald-600 text-white border-emerald-500 shadow-sm"
+                            : "bg-card border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Descending (Z-A)
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <button
-                  onClick={() =>
-                    handleApplyCleanAction("clip_outliers", {
-                      column: outlierCol,
-                      lower_quantile: lowerQuantile,
-                      upper_quantile: upperQuantile,
-                    })
-                  }
-                  disabled={cleaningLoading || numericColumns.length === 0}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
-                >
-                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                  <span>Clip Outliers</span>
-                </button>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() => handlePreviewCleanAction("sort_rows", { column: sortCol, ascending: sortAscending })}
+                    disabled={previewLoading || cleaningLoading}
+                    className="px-3.5 py-2 rounded-lg bg-card border border-border hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                  >
+                    {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    <span>Preview Sort</span>
+                  </button>
+                  <button
+                    onClick={() => handleApplyCleanAction("sort_rows", { column: sortCol, ascending: sortAscending })}
+                    disabled={cleaningLoading}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                  >
+                    {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpDown className="w-3.5 h-3.5" />}
+                    <span>Sort Dataset</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeCleanTool === "normalize" && (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-foreground">Normalize / Standardize Numeric Feature</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Numeric Column</label>
+                    <select
+                      value={normalizeCol}
+                      onChange={(e) => setNormalizeCol(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      {numericColumns.map((col) => (
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Normalization Method</label>
+                    <select
+                      value={normalizeMethod}
+                      onChange={(e) => setNormalizeMethod(e.target.value)}
+                      className="w-full bg-card border border-border rounded-lg text-xs p-2 text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="minmax">Min-Max Scaling [0, 1]</option>
+                      <option value="zscore">Z-Score Standardization (μ=0, σ=1)</option>
+                      <option value="robust">Robust Scaling (Median &amp; IQR)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() => handlePreviewCleanAction("normalize", { column: normalizeCol, method: normalizeMethod })}
+                    disabled={previewLoading || cleaningLoading || numericColumns.length === 0}
+                    className="px-3.5 py-2 rounded-lg bg-card border border-border hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    <span>Preview Normalization</span>
+                  </button>
+                  <button
+                    onClick={() => handleApplyCleanAction("normalize", { column: normalizeCol, method: normalizeMethod })}
+                    disabled={cleaningLoading || numericColumns.length === 0}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scale className="w-3.5 h-3.5" />}
+                    <span>Normalize Column</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -711,14 +1219,24 @@ export default function QualityPage() {
                     ))}
                   </select>
                 </div>
-                <button
-                  onClick={() => handleApplyCleanAction("drop_columns", { columns: [dropCol] })}
-                  disabled={cleaningLoading}
-                  className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
-                >
-                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                  <span>Drop Column</span>
-                </button>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() => handlePreviewCleanAction("drop_columns", { columns: [dropCol] })}
+                    disabled={previewLoading || cleaningLoading}
+                    className="px-3.5 py-2 rounded-lg bg-card border border-border hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                  >
+                    {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 text-rose-500" />}
+                    <span>Preview Drop</span>
+                  </button>
+                  <button
+                    onClick={() => handleApplyCleanAction("drop_columns", { columns: [dropCol] })}
+                    disabled={cleaningLoading}
+                    className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                  >
+                    {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    <span>Drop Column</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -765,23 +1283,125 @@ export default function QualityPage() {
                     />
                   </div>
                 </div>
-                <button
-                  onClick={() =>
-                    handleApplyCleanAction("filter_rows", {
-                      column: filterCol,
-                      operator: filterOperator,
-                      value: filterVal,
-                    })
-                  }
-                  disabled={cleaningLoading || !filterVal.trim()}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
-                >
-                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Filter className="w-3.5 h-3.5" />}
-                  <span>Filter Rows</span>
-                </button>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() =>
+                      handlePreviewCleanAction("filter_rows", {
+                        column: filterCol,
+                        operator: filterOperator,
+                        value: filterVal,
+                      })
+                    }
+                    disabled={previewLoading || cleaningLoading || !filterVal.trim()}
+                    className="px-3.5 py-2 rounded-lg bg-card border border-border hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {previewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    <span>Preview Filter</span>
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleApplyCleanAction("filter_rows", {
+                        column: filterCol,
+                        operator: filterOperator,
+                        value: filterVal,
+                      })
+                    }
+                    disabled={cleaningLoading || !filterVal.trim()}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Filter className="w-3.5 h-3.5" />}
+                    <span>Filter Rows</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Dry-Run Before / After Preview Diff Banner */}
+          {previewData && (
+            <div className="p-4 rounded-xl bg-emerald-500/10 border-2 border-emerald-500/30 text-xs space-y-3 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                <div className="flex items-center space-x-2">
+                  <Eye className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="font-bold text-emerald-800 dark:text-emerald-200 uppercase tracking-wider text-[11px] font-mono">
+                    Dry-Run Transformation Preview
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setPreviewData(null);
+                    setPendingAction(null);
+                  }}
+                  className="text-muted-foreground hover:text-foreground text-xs"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-background/80 border border-emerald-500/20 text-foreground font-mono text-[11px]">
+                {previewData.summary}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                <div className="p-2 rounded-lg bg-card border border-border">
+                  <div className="text-[10px] text-muted-foreground uppercase font-mono">Rows Before</div>
+                  <div className="font-bold text-foreground">{previewData.rows_before.toLocaleString()}</div>
+                </div>
+                <div className="p-2 rounded-lg bg-card border border-border">
+                  <div className="text-[10px] text-muted-foreground uppercase font-mono">Rows After</div>
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {previewData.rows_after.toLocaleString()}
+                    {previewData.rows_after !== previewData.rows_before && (
+                      <span className="text-[10px] ml-1 text-muted-foreground">
+                        ({previewData.rows_after - previewData.rows_before})
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-card border border-border">
+                  <div className="text-[10px] text-muted-foreground uppercase font-mono">Columns Before</div>
+                  <div className="font-bold text-foreground">{previewData.cols_before}</div>
+                </div>
+                <div className="p-2 rounded-lg bg-card border border-border">
+                  <div className="text-[10px] text-muted-foreground uppercase font-mono">Columns After</div>
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400">{previewData.cols_after}</div>
+                </div>
+              </div>
+
+              {previewData.stats_before && previewData.stats_after && (
+                <div className="p-2.5 rounded-lg bg-card border border-border text-[11px] font-mono space-y-1">
+                  <div className="text-muted-foreground text-[10px] uppercase font-bold">Numeric Distribution Shift ({previewData.affected_column})</div>
+                  <div className="grid grid-cols-3 gap-2 text-foreground">
+                    <div>Min: {previewData.stats_before.min} &rarr; <span className="text-emerald-600 dark:text-emerald-400 font-bold">{previewData.stats_after.min}</span></div>
+                    <div>Mean: {previewData.stats_before.mean} &rarr; <span className="text-emerald-600 dark:text-emerald-400 font-bold">{previewData.stats_after.mean}</span></div>
+                    <div>Max: {previewData.stats_before.max} &rarr; <span className="text-emerald-600 dark:text-emerald-400 font-bold">{previewData.stats_after.max}</span></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewData(null);
+                    setPendingAction(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-xs font-medium text-foreground transition-colors"
+                >
+                  Dismiss Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCommitPreview}
+                  disabled={cleaningLoading}
+                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5"
+                >
+                  {cleaningLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  <span>Confirm &amp; Apply Changes</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Action Status Banner */}
           {cleaningStatus && (

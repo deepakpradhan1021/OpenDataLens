@@ -6,6 +6,7 @@ const SHARED_WORKSPACE_ID = `e2e_workspace_${Date.now()}`;
 
 test.describe("OpenDataLens End-to-End Suite", () => {
   test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.addInitScript((wsId) => {
       window.localStorage.setItem("opendatalens_workspace_id", wsId);
       window.localStorage.setItem("opendatalens_tour_seen", "true");
@@ -143,5 +144,51 @@ test.describe("OpenDataLens End-to-End Suite", () => {
     await expect(header.getByRole("link", { name: "Explorer", exact: true })).toBeVisible();
     await expect(header.getByRole("link", { name: "ML Studio", exact: true })).toBeVisible();
     await expect(header.getByRole("link", { name: "Data Drift", exact: true })).toBeVisible();
+  });
+
+  test("9. Visual Analytics Studio renders histogram, correlation heatmap, and chart controls", async ({ page }) => {
+    await page.goto("/visualize");
+    await expect(page.getByRole("heading", { name: /Interactive Multi-Chart Studio/i })).toBeVisible({ timeout: 10000 });
+
+    // Verify chart architecture options
+    await expect(page.getByRole("button", { name: "Bar", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Histogram", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Heatmap", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Donut", exact: true })).toBeVisible();
+
+    // Switch to Histogram
+    await page.getByRole("button", { name: "Histogram", exact: true }).click();
+    await expect(page.getByText(/Distribution Histogram:/i)).toBeVisible({ timeout: 10000 });
+
+    // Switch to Heatmap
+    await page.getByRole("button", { name: "Heatmap", exact: true }).click();
+    await expect(page.getByText(/Pairwise Feature Correlation Heatmap/i)).toBeVisible({ timeout: 10000 });
+
+    // Verify Export buttons
+    await expect(page.getByRole("button", { name: "PNG", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "SVG", exact: true })).toBeVisible();
+  });
+
+  test("10. Data Quality Studio supports Sort, Normalize, Outliers, and Checkpoints", async ({ page }) => {
+    await page.goto("/quality");
+    await expect(page.getByRole("heading", { name: /Data Quality Intelligence/i })).toBeVisible({ timeout: 10000 });
+
+    // Verify Tool Selector Pills
+    await expect(page.getByRole("button", { name: "Sort Rows", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Normalize", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Outliers", exact: true })).toBeVisible();
+
+    // Click Normalize
+    await page.getByRole("button", { name: "Normalize", exact: true }).click();
+    await expect(page.getByText("Normalize / Standardize Numeric Feature")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Preview Normalization" })).toBeVisible();
+
+    // Click Sort Rows
+    await page.getByRole("button", { name: "Sort Rows", exact: true }).click();
+    await expect(page.getByText("Sort Dataset Rows Deterministically")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Preview Sort" })).toBeVisible();
+
+    // Verify Save Checkpoint button in header
+    await expect(page.getByTitle("Save current state as a named checkpoint")).toBeVisible();
   });
 });
