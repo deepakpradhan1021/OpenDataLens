@@ -46,6 +46,8 @@ export default function SharePage({ params }: SharePageProps) {
     } catch (err: any) {
       if (err.response?.status === 401) {
         setPasswordError("Incorrect password. Please try again.");
+      } else if (err.response?.status === 429) {
+        setPasswordError(err.response?.data?.detail || "Too many failed attempts. Access temporarily locked for 15 minutes.");
       } else if (err.response?.status === 410) {
         setReport({ status: "expired" });
       } else if (err.response?.status === 404) {

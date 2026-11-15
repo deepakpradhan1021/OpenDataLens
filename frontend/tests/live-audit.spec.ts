@@ -5,6 +5,12 @@ const LIVE_URL = process.env.LIVE_URL || "https://opendatalens-app.vercel.app";
 test.describe("OpenDataLens Live Production Audit & Full User Journey", () => {
   test.use({ baseURL: LIVE_URL });
 
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("opendatalens_tour_seen", "true");
+    });
+  });
+
   test("1. End-to-End User Journey: Curated Dataset -> Quality -> Studio -> Comparison -> Drift -> Reports", async ({ page }) => {
     test.setTimeout(120000);
     const AUDIT_WORKSPACE_ID = `audit_live_class_${Date.now()}`;

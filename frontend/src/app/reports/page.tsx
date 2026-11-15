@@ -28,7 +28,8 @@ import {
   Printer,
   ChevronRight,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Upload
 } from "lucide-react";
 import { Ring } from "@/components/loading-ui/ring";
 import { api } from "@/lib/api";
@@ -175,6 +176,25 @@ export default function ReportsPage() {
       setProjectsList((prev) => prev.filter((p) => p.id !== projectId));
     } catch (err: any) {
       alert("Failed to delete project: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleImportBundle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setLoading(true);
+      const res = await api.importProjectBundle(file);
+      if (res.status === "success") {
+        alert(`Project "${res.project?.name || "Bundle"}" imported successfully!`);
+        const updated = await api.listProjects();
+        setProjectsList(updated.projects || []);
+      }
+    } catch (err: any) {
+      alert("Failed to import project bundle: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoading(false);
+      e.target.value = "";
     }
   };
 
@@ -777,6 +797,35 @@ export default function ReportsPage() {
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Ephemeral Storage Disclosure */}
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-start space-x-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+              <div className="space-y-0.5">
+                <span className="font-semibold text-[11px]">Free-Tier Ephemeral Storage Notice:</span>
+                <p className="text-[11px] leading-relaxed opacity-90">
+                  Render containers sleep when inactive and wipe ephemeral disks upon restart. To keep your work permanently without cost, download the portable <strong>.odl bundle</strong> to your machine.
+                </p>
+              </div>
+            </div>
+
+            {/* Import Button */}
+            <div>
+              <label
+                htmlFor="bundle-import-input"
+                className="w-full inline-flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Import Portable .odl Bundle</span>
+              </label>
+              <input
+                id="bundle-import-input"
+                type="file"
+                accept=".odl,.zip"
+                className="hidden"
+                onChange={handleImportBundle}
+              />
             </div>
 
             {projectsList.length === 0 ? (

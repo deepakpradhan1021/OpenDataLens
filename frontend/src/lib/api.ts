@@ -707,8 +707,11 @@ export const api = {
   },
 
   // Saved Projects Engine
-  listProjects: async (): Promise<{ projects: SavedProject[] }> => {
-    const { data } = await apiClient.get("/projects");
+  listProjects: async (sessionId?: string): Promise<{ projects: SavedProject[] }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.get(`/projects?session_id=${encodeURIComponent(sid)}`, {
+      headers: { "X-Session-ID": sid },
+    });
     return data;
   },
 
@@ -728,8 +731,11 @@ export const api = {
     return data;
   },
 
-  getProject: async (projectId: string): Promise<any> => {
-    const { data } = await apiClient.get(`/projects/${projectId}`);
+  getProject: async (projectId: string, sessionId?: string): Promise<any> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.get(`/projects/${projectId}?session_id=${encodeURIComponent(sid)}`, {
+      headers: { "X-Session-ID": sid },
+    });
     return data;
   },
 
@@ -741,13 +747,30 @@ export const api = {
     return data;
   },
 
-  deleteProject: async (projectId: string): Promise<{ status: string; message: string }> => {
-    const { data } = await apiClient.delete(`/projects/${projectId}`);
+  deleteProject: async (projectId: string, sessionId?: string): Promise<{ status: string; message: string }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.delete(`/projects/${projectId}?session_id=${encodeURIComponent(sid)}`, {
+      headers: { "X-Session-ID": sid },
+    });
     return data;
   },
 
-  getProjectBundleUrl: (projectId: string) => {
-    return `${API_BASE_URL}/projects/${projectId}/bundle`;
+  getProjectBundleUrl: (projectId: string, sessionId?: string) => {
+    const sid = sessionId || getWorkspaceId();
+    return `${API_BASE_URL}/projects/${projectId}/bundle?session_id=${encodeURIComponent(sid)}`;
+  },
+
+  importProjectBundle: async (file: File, sessionId?: string): Promise<{ status: string; project: any }> => {
+    const sid = sessionId || getWorkspaceId();
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await apiClient.post(`/projects/import?session_id=${encodeURIComponent(sid)}`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        "X-Session-ID": sid,
+      },
+    });
+    return data;
   },
 
   // Secure Sharing Engine
@@ -769,11 +792,11 @@ export const api = {
   },
 
   getSharedReport: async (token: string, password?: string): Promise<SharedReportResponse> => {
-    const headers: Record<string, string> = {};
     if (password) {
-      headers["X-Share-Password"] = password;
+      const { data } = await apiClient.post(`/share/${token}/unlock`, { password });
+      return data;
     }
-    const { data } = await apiClient.get(`/share/${token}`, { headers });
+    const { data } = await apiClient.get(`/share/${token}`);
     return data;
   },
 

@@ -6,6 +6,7 @@ multi-sheet Excel dossiers, and packages fitted Scikit-learn pipelines with seri
 
 import io
 import json
+import html
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import joblib
@@ -180,15 +181,15 @@ def generate_pdf_report(
     story = []
 
     # Title & Metadata Banner
-    ds_name = dataset_meta.get("name", "Active Dataset")
-    ds_source = dataset_meta.get("source", dataset_meta.get("format", "In-Memory"))
+    ds_name = html.escape(str(dataset_meta.get("name", "Active Dataset")))
+    ds_source = html.escape(str(dataset_meta.get("source", dataset_meta.get("format", "In-Memory"))))
     total_rows = len(df) if df is not None else dataset_meta.get("total_rows", 0)
     total_cols = len(df.columns) if df is not None else dataset_meta.get("total_columns", 0)
     timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     story.append(Paragraph(f"{APP_NAME} — Executive Evaluation Report", title_style))
     story.append(Paragraph(
-        f"Dataset: <b>{ds_name}</b> &bull; Source: <b>{ds_source}</b> &bull; Task: <b>{problem_type.capitalize()}</b> &bull; Exported: <b>{timestamp_str}</b>",
+        f"Dataset: <b>{ds_name}</b> &bull; Source: <b>{ds_source}</b> &bull; Task: <b>{html.escape(problem_type.capitalize())}</b> &bull; Exported: <b>{timestamp_str}</b>",
         subtitle_style
     ))
     story.append(Spacer(1, 10))
@@ -200,7 +201,7 @@ def generate_pdf_report(
         comp_score = q_overview.get("completeness_score", 100.0)
         health_score = q_overview.get("health_score", 100.0)
         dup_rows = q_overview.get("duplicate_rows", 0)
-        champ_name = (best_model_info or {}).get("name", "N/A" if not model_evaluations else "Evaluating...")
+        champ_name = html.escape(str((best_model_info or {}).get("name", "N/A" if not model_evaluations else "Evaluating...")))
 
         kpi_table_data = [
             [
@@ -262,10 +263,10 @@ def generate_pdf_report(
             [Paragraph("#", th_style), Paragraph("Action", th_style), Paragraph("Target Columns", th_style), Paragraph("Parameters", th_style), Paragraph("Timestamp", th_style)]
         ]
         for idx, step in enumerate(clean_history[:10], start=1):
-            act = str(step.get("action", "Transformation"))
-            col = str(step.get("column", step.get("columns", "All")))
-            params = str(step.get("params", {})) if step.get("params") else "Default"
-            tstamp = str(step.get("timestamp", ""))[:19]
+            act = html.escape(str(step.get("action", "Transformation")))
+            col = html.escape(str(step.get("column", step.get("columns", "All"))))
+            params = html.escape(str(step.get("params", {})) if step.get("params") else "Default")
+            tstamp = html.escape(str(step.get("timestamp", ""))[:19])
             clean_rows.append([
                 Paragraph(str(idx), td_style),
                 Paragraph(act, td_style),
@@ -302,7 +303,7 @@ def generate_pdf_report(
                     ]
                 ]
                 for k, ev in model_evaluations.items():
-                    m_name = ev.get("model_name", k)
+                    m_name = html.escape(str(ev.get("model_name", k)))
                     is_champ = (m_name == best_name)
                     badge = " ★ [CHAMPION]" if is_champ else ""
                     m = ev.get("metrics", {})
@@ -328,7 +329,7 @@ def generate_pdf_report(
                     ]
                 ]
                 for k, ev in model_evaluations.items():
-                    m_name = ev.get("model_name", k)
+                    m_name = html.escape(str(ev.get("model_name", k)))
                     is_champ = (m_name == best_name)
                     badge = " ★ [CHAMPION]" if is_champ else ""
                     m = ev.get("metrics", {})
@@ -374,8 +375,8 @@ def generate_pdf_report(
         for col in list(df.columns)[:15]:
             null_pct = float(df[col].isna().mean() * 100)
             dict_rows.append([
-                Paragraph(str(col), td_style),
-                Paragraph(str(df[col].dtype), td_style),
+                Paragraph(html.escape(str(col)), td_style),
+                Paragraph(html.escape(str(df[col].dtype)), td_style),
                 Paragraph(f"{int(df[col].notna().sum())}", td_style),
                 Paragraph(f"{null_pct:.1f}%", td_style),
                 Paragraph(f"{int(df[col].nunique())}", td_style)
@@ -396,7 +397,7 @@ def generate_pdf_report(
     if "sample" in sections and df is not None and not df.empty:
         story.append(Paragraph("5. Data Sample (Top 5 Rows)", h2_style))
         preview_cols = list(df.columns)[:6]
-        samp_header = [Paragraph(str(c)[:14], th_style) for c in preview_cols]
+        samp_header = [Paragraph(html.escape(str(c)[:14]), th_style) for c in preview_cols]
         samp_rows = [samp_header]
 
         for _, row in df.head(5).iterrows():
@@ -405,7 +406,7 @@ def generate_pdf_report(
                 val_str = str(row[c])
                 if len(val_str) > 18:
                     val_str = val_str[:16] + ".."
-                row_cells.append(Paragraph(val_str, td_style))
+                row_cells.append(Paragraph(html.escape(val_str), td_style))
             samp_rows.append(row_cells)
 
         col_w = 540 / len(preview_cols)
@@ -443,21 +444,23 @@ def generate_html_report(
         sections = ["summary", "quality", "cleaning", "ml"]
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ds_name = dataset_meta.get("name", "Dataset")
+    ds_name = html.escape(str(dataset_meta.get("name", "Dataset")))
+    ds_source = html.escape(str(dataset_meta.get("source", "CSV / Upload")))
+    task_type = html.escape(str(problem_type).capitalize())
     q_overview = (quality_summary or {}).get("overview", {})
     ds_rows = q_overview.get("total_rows", dataset_meta.get("total_rows", "N/A"))
     ds_cols = q_overview.get("total_cols", dataset_meta.get("total_columns", "N/A"))
     completeness = q_overview.get("completeness_score", 100.0)
     duplicates = q_overview.get("duplicate_rows", 0)
 
-    best_name = (best_model_info or {}).get("name", "None")
+    best_name = html.escape(str((best_model_info or {}).get("name", "None")))
     eval_dict = model_evaluations or {}
 
     # Build model table rows if models present
     table_rows = []
     if "ml" in sections and eval_dict:
         for model_key, ev in eval_dict.items():
-            m_name = ev.get("model_name", model_key)
+            m_name = html.escape(str(ev.get("model_name", model_key)))
             metrics = ev.get("metrics", {})
             t_time = ev.get("fit_time", 0.0)
 
@@ -507,13 +510,17 @@ def generate_html_report(
     if "cleaning" in sections and clean_history and len(clean_history) > 0:
         c_rows = []
         for i, step in enumerate(clean_history, 1):
+            act_name = html.escape(str(step.get('action', 'Transform')))
+            col_name = html.escape(str(step.get('column', step.get('columns', 'All'))))
+            params_repr = html.escape(json.dumps(step.get('params', {}), default=str) if isinstance(step.get('params'), (dict, list)) else str(step.get('params', 'Default')))
+            tstamp_repr = html.escape(str(step.get('timestamp', ''))[:19])
             c_rows.append(f"""
             <tr>
                 <td>{i}</td>
-                <td><strong>{step.get('action', 'Transform')}</strong></td>
-                <td><code>{step.get('column', step.get('columns', 'All'))}</code></td>
-                <td>{step.get('params', {})}</td>
-                <td>{str(step.get('timestamp', ''))[:19]}</td>
+                <td><strong>{act_name}</strong></td>
+                <td><code>{col_name}</code></td>
+                <td>{params_repr}</td>
+                <td>{tstamp_repr}</td>
             </tr>
             """)
         cleaning_html = f"""
@@ -675,7 +682,7 @@ def generate_html_report(
     <div class="container">
         <div class="header">
             <h1>{APP_NAME} — Executive Evaluation Report</h1>
-            <p>Dataset: <strong>{ds_name}</strong> | Task: <strong>{problem_type.capitalize()}</strong> | Generated: {timestamp}</p>
+            <p>Dataset: <strong>{ds_name}</strong> | Task: <strong>{task_type}</strong> | Generated: {timestamp}</p>
         </div>
 
         <div class="grid">
@@ -699,7 +706,7 @@ def generate_html_report(
 
         <div class="section-card">
             <h2>Data Quality & Preprocessing Highlights</h2>
-            <p><strong>Completeness:</strong> {completeness}% | <strong>Duplicate Rows:</strong> {duplicates} | <strong>Source:</strong> {dataset_meta.get('source', 'CSV / Upload')}</p>
+            <p><strong>Completeness:</strong> {completeness}% | <strong>Duplicate Rows:</strong> {duplicates} | <strong>Source:</strong> {ds_source}</p>
             <p style="margin-top: 8px; color: var(--text-muted);">
                 Data preprocessing pipeline applies isolated leakage-free transformations, median imputation for continuous numerical variables, and frequency-based encoding for discrete features.
             </p>
