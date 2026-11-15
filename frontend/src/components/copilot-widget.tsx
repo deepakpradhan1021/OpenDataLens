@@ -202,34 +202,34 @@ export function CopilotWidget() {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Toggle AI Analyst Copilot"
-        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 p-3 sm:px-4 sm:py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-xl shadow-emerald-600/30 flex items-center space-x-2 transition-all active:scale-95 group border border-emerald-400/30"
+        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 p-3 sm:px-4 sm:py-3 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-xl shadow-indigo-600/30 flex items-center space-x-2 transition-all active:scale-95 group border border-violet-400/40"
       >
-        <Sparkles className="w-4 h-4 animate-pulse group-hover:rotate-12 transition-transform" />
-        <span className="hidden sm:inline">AI Analyst</span>
+        <Sparkles className="w-4 h-4 animate-pulse group-hover:rotate-12 transition-transform text-violet-200" />
+        <span className="hidden sm:inline">AI Copilot</span>
       </button>
 
       {/* Floating Chat Drawer */}
       {isOpen && (
         <div
-          className={`fixed bottom-24 sm:bottom-20 right-4 sm:right-6 z-50 rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 transition-all ${
+          className={`fixed bottom-24 sm:bottom-20 right-4 sm:right-6 z-50 rounded-2xl border border-violet-500/30 dark:border-violet-500/40 bg-card shadow-2xl shadow-indigo-950/25 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 transition-all ${
             isExpanded
               ? "w-[calc(100vw-2rem)] sm:w-[580px] h-[680px] max-h-[85vh]"
               : "w-[calc(100vw-2rem)] sm:w-[420px] h-[520px] max-h-[75vh]"
           }`}
         >
           {/* Header */}
-          <div className="p-3 px-4 bg-muted/60 border-b border-border flex items-center justify-between">
+          <div className="p-3 px-4 bg-violet-50/80 dark:bg-violet-950/30 border-b border-violet-200/60 dark:border-violet-800/40 flex items-center justify-between">
             <div className="flex items-center space-x-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-violet-500/25">
                 <Bot className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs font-bold text-foreground truncate">
-                    AI Data Analyst
+                    AI Data Analyst Copilot
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono flex items-center space-x-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/30 font-mono flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
                     <span>Agent Active</span>
                   </span>
                 </div>
@@ -248,7 +248,7 @@ export function CopilotWidget() {
                 title="Privacy & AI Provider Settings"
                 className={`p-1.5 rounded-lg transition-colors ${
                   showSettings
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    ? "bg-violet-500/15 text-violet-700 dark:text-violet-300"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
@@ -289,10 +289,10 @@ export function CopilotWidget() {
 
           {/* Privacy & BYOK Settings Subpanel */}
           {showSettings && (
-            <div className="p-3 bg-muted/90 border-b border-border space-y-2.5 text-xs animate-in slide-in-from-top-2 duration-150">
-              <div className="flex items-center justify-between pb-1 border-b border-border/50">
+            <div className="p-3 bg-violet-50/60 dark:bg-violet-950/20 border-b border-violet-200/50 dark:border-violet-800/30 space-y-2.5 text-xs animate-in slide-in-from-top-2 duration-150">
+              <div className="flex items-center justify-between pb-1 border-b border-violet-200/40 dark:border-violet-800/30">
                 <span className="font-semibold text-foreground flex items-center space-x-1">
-                  <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <Shield className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
                   <span>Privacy & Model Settings</span>
                 </span>
                 <span className="text-[10px] text-muted-foreground">In-Memory Only</span>
@@ -313,15 +313,15 @@ export function CopilotWidget() {
                   type="checkbox"
                   checked={shareSampleRows}
                   onChange={(e) => setShareSampleRows(e.target.checked)}
-                  className="rounded border-border text-emerald-600 focus:ring-emerald-500 h-4 w-4 mt-0.5"
+                  className="rounded border-border text-violet-600 focus:ring-violet-500 h-4 w-4 mt-0.5 accent-violet-600"
                 />
               </div>
 
               {/* Optional BYOK Key */}
-              <div className="space-y-1 pt-1 border-t border-border/50">
+              <div className="space-y-1 pt-1 border-t border-violet-200/40 dark:border-violet-800/30">
                 <div className="flex items-center justify-between">
                   <label htmlFor="byok-key-input" className="text-[11px] font-medium text-foreground flex items-center space-x-1">
-                    <Key className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <Key className="w-3 h-3 text-violet-600 dark:text-violet-400" />
                     <span>Custom API Key (BYOK)</span>
                   </label>
                   <select
@@ -340,7 +340,7 @@ export function CopilotWidget() {
                   value={customKey}
                   onChange={(e) => setCustomKey(e.target.value)}
                   placeholder="sk-... (held only in memory)"
-                  className="w-full bg-background border border-border rounded px-2.5 py-1 text-[11px] text-foreground focus:outline-none focus:border-emerald-500 font-mono"
+                  className="w-full bg-background border border-border rounded px-2.5 py-1 text-[11px] text-foreground focus:outline-none focus:border-violet-500 font-mono"
                 />
               </div>
             </div>
@@ -358,17 +358,24 @@ export function CopilotWidget() {
                 <div
                   className={`p-3 rounded-2xl max-w-[90%] leading-relaxed ${
                     m.role === "user"
-                      ? "bg-emerald-600 text-white rounded-br-none shadow-sm"
-                      : "bg-muted/70 text-foreground border border-border rounded-bl-none shadow-sm space-y-2.5"
+                      ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-br-none shadow-sm"
+                      : "bg-violet-50/70 dark:bg-violet-950/25 text-foreground border border-violet-200/70 dark:border-violet-800/40 rounded-bl-none shadow-sm space-y-2"
                   }`}
                 >
+                  {m.role === "assistant" && (
+                    <div className="flex items-center space-x-1.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300 pb-1 border-b border-violet-200/50 dark:border-violet-800/30">
+                      <Bot className="w-3 h-3 text-violet-600 dark:text-violet-400" />
+                      <span>Copilot Assistant</span>
+                    </div>
+                  )}
+
                   <div className="whitespace-pre-wrap">{m.content}</div>
 
                   {/* Proposed Action Card */}
                   {m.proposedAction && !m.executed && (
-                    <div className="mt-2 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-2">
-                      <div className="flex items-center space-x-1.5 text-emerald-700 dark:text-emerald-300 font-semibold text-[11px]">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                    <div className="mt-2 p-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 space-y-2">
+                      <div className="flex items-center space-x-1.5 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px]">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
                         <span>Proposed Action (Requires Confirmation)</span>
                       </div>
                       <p className="text-[11px] text-foreground/90 leading-tight">
@@ -384,7 +391,7 @@ export function CopilotWidget() {
                           type="button"
                           disabled={actionLoading}
                           onClick={() => handleExecuteAction(idx, m.proposedAction!)}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-[10px] flex items-center space-x-1 shadow-sm transition-all disabled:opacity-50"
+                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium text-[10px] flex items-center space-x-1 shadow-sm transition-all disabled:opacity-50"
                         >
                           {actionLoading ? (
                             <Loader2 className="w-3 h-3 animate-spin" />
@@ -402,16 +409,16 @@ export function CopilotWidget() {
 
                   {/* Executed Action Badge */}
                   {m.executed && (
-                    <div className="mt-1 px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] flex items-center space-x-1">
-                      <CheckCircle2 className="w-3 h-3" />
+                    <div className="mt-1 px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-[10px] flex items-center space-x-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                       <span>Action executed and saved to workspace history</span>
                     </div>
                   )}
 
                   {/* Assistant Footer Info (Copy & Engine Indicator) */}
                   {m.role === "assistant" && (
-                    <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px] text-muted-foreground">
-                      <span className="font-mono">
+                    <div className="flex items-center justify-between pt-1 border-t border-violet-200/50 dark:border-violet-800/30 text-[10px] text-muted-foreground">
+                      <span className="font-mono text-[9px]">
                         {m.providerUsed === "local_heuristic"
                           ? "⚡ Calculated locally (pandas facts)"
                           : `✨ Generated by ${m.providerUsed || "AI"}`}
@@ -421,12 +428,12 @@ export function CopilotWidget() {
                         type="button"
                         onClick={() => handleCopy(m.content, idx)}
                         title="Copy to clipboard"
-                        className="p-1 hover:text-foreground transition-colors flex items-center space-x-1"
+                        className="p-1 hover:text-violet-600 dark:hover:text-violet-400 transition-colors flex items-center space-x-1"
                       >
                         {copiedIdx === idx ? (
                           <>
-                            <Check className="w-3 h-3 text-emerald-500" />
-                            <span className="text-emerald-500 text-[9px]">Copied</span>
+                            <Check className="w-3 h-3 text-violet-600 dark:text-violet-400" />
+                            <span className="text-violet-600 dark:text-violet-400 text-[9px]">Copied</span>
                           </>
                         ) : (
                           <Copy className="w-3 h-3" />
@@ -444,10 +451,10 @@ export function CopilotWidget() {
                         key={cIdx}
                         type="button"
                         onClick={() => handleSend(chip)}
-                        className="text-[10px] px-2.5 py-1 rounded-full border border-border bg-card hover:bg-muted text-foreground transition-colors flex items-center space-x-1 group"
+                        className="text-[10px] px-2.5 py-1 rounded-full border border-violet-200/80 dark:border-violet-800/60 bg-violet-50/50 dark:bg-violet-900/15 hover:bg-violet-100/70 dark:hover:bg-violet-900/30 text-foreground hover:border-violet-400 transition-all flex items-center space-x-1 group"
                       >
                         <span>{chip}</span>
-                        <ArrowRight className="w-2.5 h-2.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+                        <ArrowRight className="w-2.5 h-2.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-violet-600 transition-transform" />
                       </button>
                     ))}
                   </div>
@@ -456,9 +463,9 @@ export function CopilotWidget() {
             ))}
 
             {loading && (
-              <div className="flex items-center space-x-2 text-xs text-muted-foreground font-mono p-2">
-                <Ring className="size-3.5 text-emerald-500" />
-                <span>Auditing workspace telemetry and calculating answers...</span>
+              <div className="flex items-center space-x-2 text-xs text-muted-foreground font-mono p-2.5 rounded-xl bg-violet-50/40 dark:bg-violet-950/20 border border-violet-200/50 dark:border-violet-800/30 animate-pulse">
+                <Ring className="size-3.5 text-violet-600 dark:text-violet-400" />
+                <span className="text-violet-700 dark:text-violet-300">AI Copilot is synthesizing dataset telemetry and calculating insights...</span>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -470,25 +477,26 @@ export function CopilotWidget() {
               e.preventDefault();
               handleSend();
             }}
-            className="p-3 bg-muted/30 border-t border-border flex items-center space-x-2"
+            className="p-3 bg-violet-50/30 dark:bg-violet-950/15 border-t border-violet-200/60 dark:border-violet-800/40 flex items-center space-x-2"
           >
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask AI Analyst about datasets, quality, charts, or models..."
-              className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-emerald-500"
+              placeholder="Ask Copilot about datasets, anomalies, charts, or models..."
+              className="flex-1 bg-background border border-violet-200/80 dark:border-violet-800/60 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/25"
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-all disabled:opacity-50"
+              className="p-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white transition-all disabled:opacity-50 shadow-sm shadow-violet-500/25"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
           </form>
         </div>
       )}
+
     </>
   );
 }

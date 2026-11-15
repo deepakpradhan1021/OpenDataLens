@@ -29,6 +29,8 @@ import {
   SavedProject,
   ShareInfo,
   SharedReportResponse,
+  ChartDataRequest,
+  ChartDataResponse,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -354,6 +356,15 @@ export const api = {
     const sid = sessionId || getWorkspaceId();
     const { data } = await apiClient.get("/datasets/active", {
       params: { session_id: sid },
+    });
+    return data;
+  },
+
+  getChartData: async (params: ChartDataRequest): Promise<ChartDataResponse> => {
+    const sid = params.session_id || getWorkspaceId();
+    const { data } = await apiClient.post("/datasets/chart-data", {
+      ...params,
+      session_id: sid,
     });
     return data;
   },

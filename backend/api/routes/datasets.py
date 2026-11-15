@@ -14,7 +14,9 @@ from backend.api.models import (
     LoadHFRequest,
     HFDatasetCard,
     DatasetPreviewResponse,
-    ColumnSchemaInfo
+    ColumnSchemaInfo,
+    ChartDataRequest,
+    ChartDataResponse
 )
 from core.dataset_loader import (
     get_sample_datasets_list,
@@ -25,6 +27,7 @@ from core.dataset_loader import (
     load_uploaded_file
 )
 from core.quality_analyzer import analyze_data_quality
+from core.chart_engine import compute_chart_data
 
 router = APIRouter(prefix="/datasets", tags=["Datasets"])
 
@@ -184,3 +187,34 @@ def get_active_dataset(session_id: str = "default", limit: int = 50):
     if df is None or meta is None:
         raise HTTPException(status_code=404, detail="No active dataset in session. Load or upload a dataset first.")
     return _build_preview_response(df, meta, session_id, limit=limit)
+
+
+@router.post("/chart-data", response_model=ChartDataResponse)
+def get_chart_data(req: ChartDataRequest):
+    """
+    Computes mathematically rigorous, full-dataset aggregations, binning,
+    and statistical relationship insights using Pandas and NumPy.
+    """
+    df = store.get_dataset(req.session_id)
+    if df is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No active dataset found in session. Please load a dataset first."
+        )
+
+    res = compute_chart_data(
+        df=df,
+        chart_type=req.chart_type,
+        x_col=req.x_col,
+        y_col=req.y_col,
+        aggregation=req.aggregation,
+        bins=req.bins,
+        bin_numeric=req.bin_numeric,
+        sort_by=req.sort_by,
+        top_n=req.top_n,
+        filter_min=req.filter_min,
+        filter_max=req.filter_max,
+        exclude_nulls=req.exclude_nulls
+    )
+    return ChartDataResponse(**res)
+

@@ -249,3 +249,29 @@ class NamedCheckpointsResponse(BaseModel):
     checkpoints: List[NamedCheckpointItem]
     count: int
 
+
+# Visualization Engine Schemas
+class ChartDataRequest(BaseModel):
+    session_id: str = "default"
+    chart_type: str = "bar"
+    x_col: str
+    y_col: Optional[str] = None
+    aggregation: str = "mean"
+    bins: int = 10
+    bin_numeric: bool = True
+    sort_by: str = "auto"
+    top_n: int = 15
+    filter_min: Optional[float] = None
+    filter_max: Optional[float] = None
+    exclude_nulls: bool = True
+
+
+class ChartDataResponse(BaseModel):
+    chart_type: str
+    x_col: Optional[str] = None
+    y_col: Optional[str] = None
+    data: Any
+    insights: Dict[str, Any]
+    total_rows: int
+    valid_rows: Optional[int] = None
+

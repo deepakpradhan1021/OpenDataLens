@@ -36,6 +36,7 @@ import {
   X,
   Check,
   RotateCcw,
+  Bot,
 } from "lucide-react";
 import {
   BarChart,
@@ -1428,16 +1429,21 @@ export default function QualityPage() {
           )}
         </div>
 
-        {/* AI DATASET COPILOT ASSISTANT */}
-        <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 via-teal-500/5 to-card p-6 space-y-4 shadow-sm">
+        {/* AI DATASET COPILOT ASSISTANT (VIOLET/INDICO IDENTITY) */}
+        <div className="rounded-2xl border border-violet-500/30 dark:border-violet-500/40 bg-gradient-to-r from-violet-500/5 via-indigo-500/5 to-card p-6 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <Sparkles className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex items-center justify-center font-bold shadow-sm shadow-violet-500/20">
+                <Sparkles className="w-4 h-4 text-violet-200" />
               </div>
               <div>
-                <h3 className="font-semibold text-sm text-foreground font-sans">AI Dataset Copilot</h3>
-                <p className="text-xs text-muted-foreground font-sans">Deterministic workspace intelligence based on verified audit metrics</p>
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-semibold text-sm text-foreground font-sans">AI Dataset Copilot</h3>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/30 font-mono">
+                    Deterministic Copilot
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground font-sans">Audited workspace intelligence powered by verified statistical metrics</p>
               </div>
             </div>
           </div>
@@ -1453,7 +1459,7 @@ export default function QualityPage() {
               <button
                 key={prompt}
                 onClick={() => handleAskCopilot(prompt)}
-                className="px-3 py-1 rounded-lg border border-border bg-card hover:bg-muted text-xs font-sans font-medium text-muted-foreground hover:text-foreground transition-colors shadow-sm"
+                className="px-3 py-1 rounded-full border border-violet-200/80 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-900/15 hover:bg-violet-100/70 dark:hover:bg-violet-900/30 text-xs font-sans font-medium text-foreground hover:border-violet-400 transition-all shadow-sm"
               >
                 {prompt}
               </button>
@@ -1468,15 +1474,15 @@ export default function QualityPage() {
               onChange={(e) => setCopilotQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAskCopilot()}
               placeholder="Ask Copilot a question about this dataset (e.g. 'Explain my dataset' or 'What should I clean first?')..."
-              className="flex-1 p-2.5 rounded-xl border border-border bg-muted/40 text-xs font-sans text-foreground placeholder-muted-foreground focus:outline-none focus:border-emerald-500"
+              className="flex-1 p-2.5 rounded-xl border border-violet-200/80 dark:border-violet-800/60 bg-background text-xs font-sans text-foreground placeholder-muted-foreground focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/25"
             />
             <button
               onClick={() => handleAskCopilot()}
               disabled={copilotLoading}
-              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50 shadow-sm"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50 shadow-sm shadow-violet-500/20"
             >
               {copilotLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              <span>Ask</span>
+              <span>Ask Copilot</span>
             </button>
           </div>
 
@@ -1495,9 +1501,10 @@ export default function QualityPage() {
 
           {/* Copilot Answer Display */}
           {copilotResponse && (
-            <div className="mt-3 p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-xs text-foreground space-y-2 animate-in fade-in duration-200">
-              <div className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] uppercase tracking-wider font-mono">
-                Copilot Analysis ({copilotResponse.intent})
+            <div className="mt-3 p-4 rounded-xl border border-violet-500/30 bg-violet-50/70 dark:bg-violet-950/25 text-xs text-foreground space-y-2 animate-in fade-in duration-200 shadow-sm">
+              <div className="font-semibold text-violet-700 dark:text-violet-300 text-[11px] uppercase tracking-wider font-mono flex items-center space-x-1.5">
+                <Bot className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                <span>Copilot Analysis ({copilotResponse.intent})</span>
               </div>
               <div className="whitespace-pre-line leading-relaxed text-foreground font-sans text-xs">
                 {copilotResponse.answer}

@@ -25,6 +25,7 @@ import {
   Check,
   FileDown,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -47,7 +48,7 @@ import {
 } from "recharts";
 import { Ring } from "@/components/loading-ui/ring";
 import { api, categorizeApiError } from "@/lib/api";
-import { DatasetPreviewResponse } from "@/lib/types";
+import { DatasetPreviewResponse, ChartDataResponse, ChartDataInsights, ChartDataItem } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 
 const PALETTE = [
@@ -77,6 +78,13 @@ export default function VisualizePage() {
   const [yAxisCol, setYAxisCol] = useState<string>("");
   const [aggregation, setAggregation] = useState<AggregationType>("mean");
   const [topN, setTopN] = useState<number>(15);
+  const [bins, setBins] = useState<number>(10);
+  const [binNumeric, setBinNumeric] = useState<boolean>(true);
+  const [sortBy, setSortBy] = useState<string>("auto");
+
+  // Server-computed Chart Engine State
+  const [serverChartLoading, setServerChartLoading] = useState<boolean>(false);
+  const [serverChartResponse, setServerChartResponse] = useState<ChartDataResponse | null>(null);
 
   // Filters & Customization
   const [excludeNulls, setExcludeNulls] = useState<boolean>(true);
@@ -190,7 +198,59 @@ export default function VisualizePage() {
     return rows;
   }, [dataset, xAxisCol, yAxisCol, excludeNulls, filterKeyword, minThreshold]);
 
-  // Aggregated Chart Data Computation
+  // Synchronize with Pandas Backend Chart Engine
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchServerChart() {
+      if (!dataset || !xAxisCol) return;
+      setServerChartLoading(true);
+      try {
+        const thresh = minThreshold.trim() && !isNaN(Number(minThreshold)) ? Number(minThreshold) : undefined;
+        const resp = await api.getChartData({
+          chart_type: chartType,
+          x_col: xAxisCol,
+          y_col: yAxisCol || undefined,
+          aggregation,
+          bins,
+          bin_numeric: binNumeric,
+          sort_by: sortBy,
+          top_n: topN,
+          filter_min: thresh,
+          exclude_nulls: excludeNulls,
+        });
+        if (!cancelled) {
+          setServerChartResponse(resp);
+        }
+      } catch (err) {
+        console.warn("Server chart calculation failed, using client-side fallback", err);
+      } finally {
+        if (!cancelled) {
+          setServerChartLoading(false);
+        }
+      }
+    }
+
+    fetchServerChart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    dataset,
+    chartType,
+    xAxisCol,
+    yAxisCol,
+    aggregation,
+    topN,
+    bins,
+    binNumeric,
+    sortBy,
+    excludeNulls,
+    minThreshold,
+  ]);
+
+  // Aggregated Chart Data Computation (Client Fallback)
   const computedChartData = useMemo(() => {
     if (!dataset || !xAxisCol || filteredRows.length === 0) return [];
     const rows = filteredRows;
@@ -205,27 +265,29 @@ export default function VisualizePage() {
       if (values.length === 0) return [];
       const min = Math.min(...values);
       const max = Math.max(...values);
-      const binCount = Math.min(15, Math.max(5, Math.floor(Math.sqrt(values.length))));
+      const binCount = Math.min(20, Math.max(5, bins || 10));
       const binWidth = max === min ? 1 : (max - min) / binCount;
 
-      const bins = Array.from({ length: binCount }, (_, i) => {
+      const histBins = Array.from({ length: binCount }, (_, i) => {
         const bMin = min + i * binWidth;
         const bMax = i === binCount - 1 ? max : bMin + binWidth;
         return {
-          name: `${bMin.toFixed(2)} - ${bMax.toFixed(2)}`,
+          name: `[${bMin.toFixed(2)} - ${bMax.toFixed(2)}]`,
           value: 0,
           count: 0,
           range: `[${bMin.toFixed(2)}, ${bMax.toFixed(2)}]`,
+          bin_start: bMin,
+          bin_end: bMax,
         };
       });
 
       values.forEach((v) => {
         const idx = Math.min(binCount - 1, Math.max(0, Math.floor((v - min) / binWidth)));
-        bins[idx].value += 1;
-        bins[idx].count += 1;
+        histBins[idx].value += 1;
+        histBins[idx].count += 1;
       });
 
-      return bins;
+      return histBins;
     }
 
     // 2. Scatter: Raw coordinate pairs without grouping
@@ -235,7 +297,7 @@ export default function VisualizePage() {
           const xVal = typeof r[xAxisCol] === "number" ? r[xAxisCol] : i;
           const yVal = yAxisCol && typeof r[yAxisCol] === "number" ? r[yAxisCol] : 0;
           return {
-            name: `Point #${i + 1}`,
+            name: `Obs #${i + 1}`,
             value: Number(yVal),
             count: 1,
             x: xVal,
@@ -244,10 +306,77 @@ export default function VisualizePage() {
           };
         })
         .filter((pt) => pt.x !== null && pt.y !== null && !isNaN(pt.x) && !isNaN(pt.y))
-        .slice(0, 150);
+        .sort((a, b) => a.x - b.x)
+        .slice(0, 300);
     }
 
-    // 3. Grouped Aggregation (Bar, Line, Area, Pie, Donut)
+    // 3. Continuous Numeric Binning Check
+    const isXNum = numericalColumns.includes(xAxisCol);
+    const uniqueCount = new Set(rows.map((r) => r[xAxisCol])).size;
+    const shouldBinNumeric = binNumeric && isXNum && uniqueCount > 15;
+
+    if (shouldBinNumeric) {
+      const numVals = rows
+        .map((r) => Number(r[xAxisCol]))
+        .filter((v) => !isNaN(v) && isFinite(v));
+      if (numVals.length === 0) return [];
+      const minX = Math.min(...numVals);
+      const maxX = Math.max(...numVals);
+      const binCount = Math.max(4, Math.min(20, bins || 10));
+      const binWidth = maxX === minX ? 1 : (maxX - minX) / binCount;
+
+      const numBins = Array.from({ length: binCount }, (_, i) => {
+        const bMin = minX + i * binWidth;
+        const bMax = i === binCount - 1 ? maxX : bMin + binWidth;
+        return {
+          name: `[${bMin.toFixed(2)} - ${bMax.toFixed(2)}]`,
+          bMin,
+          bMax,
+          mid: (bMin + bMax) / 2,
+          vals: [] as number[],
+        };
+      });
+
+      rows.forEach((r) => {
+        const xV = Number(r[xAxisCol]);
+        if (isNaN(xV) || !isFinite(xV)) return;
+        const idx = Math.min(binCount - 1, Math.max(0, Math.floor((xV - minX) / binWidth)));
+        const yV = yAxisCol && typeof r[yAxisCol] === "number" ? r[yAxisCol] : 1;
+        numBins[idx].vals.push(yV);
+      });
+
+      const binnedResult = numBins.map((b) => {
+        let value = 0;
+        if (aggregation === "count" || !yAxisCol) {
+          value = b.vals.length;
+        } else if (b.vals.length > 0) {
+          if (aggregation === "sum") {
+            value = b.vals.reduce((acc, v) => acc + v, 0);
+          } else if (aggregation === "mean") {
+            value = b.vals.reduce((acc, v) => acc + v, 0) / b.vals.length;
+          } else if (aggregation === "min") {
+            value = Math.min(...b.vals);
+          } else if (aggregation === "max") {
+            value = Math.max(...b.vals);
+          }
+        }
+        return {
+          name: b.name,
+          value: Number(value.toFixed(2)),
+          count: b.vals.length,
+          mid: b.mid,
+        };
+      });
+
+      if (sortBy === "y_desc") {
+        binnedResult.sort((a, b) => b.value - a.value);
+      } else {
+        binnedResult.sort((a, b) => a.mid - b.mid);
+      }
+      return binnedResult;
+    }
+
+    // 4. Categorical / Discrete Grouped Aggregation (Bar, Line, Area, Pie, Donut)
     const groups: { [key: string]: number[] } = {};
     rows.forEach((r) => {
       const key = String(r[xAxisCol] ?? "Unknown");
@@ -282,11 +411,30 @@ export default function VisualizePage() {
       };
     });
 
-    result.sort((a, b) => b.value - a.value);
-    return result.slice(0, topN);
-  }, [dataset, filteredRows, xAxisCol, yAxisCol, aggregation, chartType, topN, numericalColumns]);
+    // Sorting logic: Line and Area charts follow natural X order unless explicitly sorted
+    if (chartType === "line" || chartType === "area") {
+      if (sortBy === "y_desc") {
+        result.sort((a, b) => b.value - a.value);
+      } else if (sortBy === "x_desc") {
+        result.sort((a, b) => b.name.localeCompare(a.name));
+      } else {
+        result.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      }
+    } else {
+      if (sortBy === "x_asc") {
+        result.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      } else if (sortBy === "x_desc") {
+        result.sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }));
+      } else {
+        // Default for bars and pies is value descending
+        result.sort((a, b) => b.value - a.value);
+      }
+    }
 
-  // 4. Heatmap Correlation Matrix Computation
+    return result.slice(0, topN);
+  }, [dataset, filteredRows, xAxisCol, yAxisCol, aggregation, chartType, topN, numericalColumns, binNumeric, bins, sortBy]);
+
+  // 5. Heatmap Correlation Matrix Computation (Client Fallback)
   const correlationMatrix = useMemo(() => {
     if (!dataset || !dataset.records || numericalColumns.length < 2) return null;
     const cols = numericalColumns.slice(0, 8);
@@ -331,6 +479,96 @@ export default function VisualizePage() {
 
     return { columns: cols, matrix };
   }, [dataset, numericalColumns]);
+
+  // Priority 1: Full-dataset Pandas computation from backend
+  // Priority 2: Client-side mathematical computation fallback
+  const activeChartData = useMemo(() => {
+    if (
+      serverChartResponse &&
+      serverChartResponse.chart_type === chartType &&
+      serverChartResponse.x_col === xAxisCol &&
+      Array.isArray(serverChartResponse.data)
+    ) {
+      return serverChartResponse.data as any[];
+    }
+    return computedChartData;
+  }, [serverChartResponse, chartType, xAxisCol, computedChartData]);
+
+  const activeCorrelationMatrix = useMemo(() => {
+    if (
+      serverChartResponse &&
+      serverChartResponse.chart_type === "heatmap" &&
+      serverChartResponse.data &&
+      typeof serverChartResponse.data === "object" &&
+      "matrix" in (serverChartResponse.data as any)
+    ) {
+      return serverChartResponse.data as { columns: string[]; matrix: Record<string, Record<string, number>> };
+    }
+    return correlationMatrix;
+  }, [serverChartResponse, correlationMatrix]);
+
+  const activeInsights: ChartDataInsights = useMemo(() => {
+    if (
+      serverChartResponse &&
+      serverChartResponse.chart_type === chartType &&
+      serverChartResponse.x_col === xAxisCol
+    ) {
+      return serverChartResponse.insights;
+    }
+    if (!computedChartData || computedChartData.length === 0) return {};
+    const values = computedChartData.map((d: any) => d.value ?? 0);
+    const isConstant = values.length > 0 && values.every((v: number) => v === values[0]);
+    return {
+      is_constant: isConstant,
+      summary_text: isConstant
+        ? `All top values across ${xAxisCol} are identical (${values[0]}). No variance detected in active selection.`
+        : `Aggregated ${computedChartData.length} records across ${xAxisCol}.`,
+      trend_type: isConstant ? "constant" : "categorical_comparison",
+      warning: undefined,
+    };
+  }, [serverChartResponse, chartType, xAxisCol, computedChartData]);
+
+  // Enhanced Interactive Chart Tooltip
+  const CustomChartTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload;
+      return (
+        <div className="rounded-xl border border-border bg-card/95 backdrop-blur-md p-3 shadow-xl text-xs space-y-1.5 font-sans min-w-[160px]">
+          <div className="font-semibold text-foreground border-b border-border/50 pb-1 truncate max-w-[220px]">
+            {dataPoint.name || label || "Observation"}
+          </div>
+          {dataPoint.x !== undefined && dataPoint.y !== undefined ? (
+            <>
+              <div className="flex justify-between gap-4 text-muted-foreground">
+                <span className="truncate">{xAxisCol}:</span>
+                <span className="font-mono font-medium text-foreground">{Number(dataPoint.x).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between gap-4 text-muted-foreground">
+                <span className="truncate">{yAxisCol || "Metric"}:</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{Number(dataPoint.y).toLocaleString()}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between gap-4 text-muted-foreground">
+                <span>{chartType === "histogram" ? "Observations:" : `${aggregation.toUpperCase()} ${yAxisCol || "Count"}:`}</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {Number(payload[0].value).toLocaleString()}
+                </span>
+              </div>
+              {dataPoint.count !== undefined && chartType !== "histogram" && (
+                <div className="flex justify-between gap-4 text-muted-foreground text-[11px]">
+                  <span>Sample Size:</span>
+                  <span className="font-mono text-muted-foreground">{dataPoint.count.toLocaleString()} rows</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
 
   // Smart Recommendations
   const presets = useMemo(() => {
@@ -696,7 +934,7 @@ export default function VisualizePage() {
                 )}
 
                 {/* Top N Limit */}
-                {chartType !== "scatter" && chartType !== "histogram" && (
+                {chartType !== "scatter" && chartType !== "histogram" && !binNumeric && (
                   <div className="space-y-1.5 pt-2">
                     <div className="flex justify-between text-[11px] text-muted-foreground">
                       <span>Display Top Slices</span>
@@ -711,6 +949,58 @@ export default function VisualizePage() {
                       onChange={(e) => setTopN(parseInt(e.target.value))}
                       className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-emerald-500"
                     />
+                  </div>
+                )}
+
+                {/* Numeric Interval Binning Controls */}
+                {numericalColumns.includes(xAxisCol) && chartType !== "scatter" && (
+                  <div className="space-y-2.5 pt-2.5 border-t border-border">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-foreground flex items-center space-x-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={binNumeric}
+                          onChange={(e) => setBinNumeric(e.target.checked)}
+                          className="rounded border-border text-emerald-600 focus:ring-emerald-500 accent-emerald-600"
+                        />
+                        <span>Bin Continuous Range</span>
+                      </label>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium">Recommended</span>
+                    </div>
+                    {binNumeric && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px] text-muted-foreground">
+                          <span>Interval Bins</span>
+                          <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{bins}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="4"
+                          max="20"
+                          step="1"
+                          value={bins}
+                          onChange={(e) => setBins(parseInt(e.target.value))}
+                          className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-emerald-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Ordering & Sorting */}
+                {chartType !== "scatter" && chartType !== "histogram" && (
+                  <div className="space-y-1.5 pt-2.5 border-t border-border">
+                    <label className="text-[11px] text-muted-foreground font-medium">Ordering &amp; Sorting</label>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="w-full bg-background border border-border rounded-xl p-2 text-xs text-foreground focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="auto">Auto (Natural X for Lines, Value for Bars)</option>
+                      <option value="x_asc">X-Axis Ascending (Chronological / Min to Max)</option>
+                      <option value="x_desc">X-Axis Descending (Max to Min)</option>
+                      <option value="y_desc">Metric Value (Highest First)</option>
+                    </select>
                   </div>
                 )}
               </div>
@@ -798,21 +1088,98 @@ export default function VisualizePage() {
                   </h3>
                   <div className="text-xs font-mono text-muted-foreground mt-0.5">
                     {chartType === "heatmap"
-                      ? `Showing Pearson correlation matrix across ${numericalColumns.slice(0, 8).length} numeric features`
-                      : `Displaying ${computedChartData.length} records computed over ${filteredRows.length.toLocaleString()} active observations`}
+                      ? `Showing Pearson correlation matrix across ${activeCorrelationMatrix?.columns.length || 0} numeric features`
+                      : `Displaying ${activeChartData.length} records computed over ${(serverChartResponse?.total_rows || dataset.total_rows || filteredRows.length).toLocaleString()} observations`}
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2 text-xs font-mono text-emerald-600 dark:text-emerald-400">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Phase 3 Studio Active</span>
+                <div className="flex items-center space-x-2 text-xs font-mono">
+                  {serverChartLoading ? (
+                    <div className="flex items-center space-x-1.5 text-muted-foreground">
+                      <Ring className="size-3 text-emerald-500" />
+                      <span>Syncing Pandas...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Pandas Engine Active</span>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Relationship & Statistical Insight Banner */}
+              {activeInsights && (activeInsights.summary_text || activeInsights.warning) && (
+                <div
+                  className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all ${
+                    activeInsights.is_constant
+                      ? "bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-200"
+                      : activeInsights.trend_type === "chronological"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200"
+                      : activeInsights.trend_type === "numeric_relationship"
+                      ? "bg-violet-500/10 border-violet-500/30 text-violet-800 dark:text-violet-200"
+                      : "bg-muted/70 border-border text-foreground"
+                  }`}
+                >
+                  <div className="flex items-start sm:items-center space-x-2.5">
+                    <div
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${
+                        activeInsights.is_constant
+                          ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                          : activeInsights.trend_type === "chronological"
+                          ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                          : activeInsights.trend_type === "numeric_relationship"
+                          ? "bg-violet-500/20 text-violet-700 dark:text-violet-300"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {activeInsights.is_constant ? (
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                      ) : activeInsights.trend_type === "chronological" ? (
+                        <Activity className="w-3.5 h-3.5" />
+                      ) : activeInsights.trend_type === "numeric_relationship" ? (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      ) : (
+                        <Info className="w-3.5 h-3.5" />
+                      )}
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-[11px] uppercase tracking-wider font-mono">
+                          {activeInsights.is_constant
+                            ? "Uniform Metric Warning"
+                            : activeInsights.trend_type === "chronological"
+                            ? "Chronological Trajectory"
+                            : activeInsights.trend_type === "numeric_relationship"
+                            ? "Statistical Relationship (Pearson r)"
+                            : activeInsights.trend_type === "categorical_comparison"
+                            ? "Categorical Breakdown"
+                            : "Analytical Telemetry"}
+                        </span>
+                        {activeInsights.correlation !== undefined && (
+                          <span className="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-700 dark:text-violet-300 font-mono font-bold text-[10px]">
+                            r = {activeInsights.correlation > 0 ? "+" : ""}{activeInsights.correlation}
+                          </span>
+                        )}
+                        {activeInsights.growth_rate !== undefined && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono font-bold text-[10px]">
+                            {activeInsights.growth_rate > 0 ? "+" : ""}{activeInsights.growth_rate}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs leading-relaxed">
+                        {activeInsights.summary_text || activeInsights.warning}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Chart Body Container */}
               <div ref={chartContainerRef} className="h-96 w-full pt-2">
                 {chartType === "heatmap" ? (
-                  !correlationMatrix ? (
+                  !activeCorrelationMatrix ? (
                     <div className="h-full flex items-center justify-center text-xs font-mono text-muted-foreground">
                       Dataset requires at least 2 numeric columns for correlation heatmap.
                     </div>
@@ -825,7 +1192,7 @@ export default function VisualizePage() {
                               <th className="p-2 border border-border text-left text-muted-foreground font-semibold">
                                 Feature
                               </th>
-                              {correlationMatrix.columns.map((col) => (
+                              {activeCorrelationMatrix.columns.map((col) => (
                                 <th
                                   key={col}
                                   className="p-2 border border-border text-center text-muted-foreground font-semibold max-w-[90px] truncate"
@@ -837,13 +1204,13 @@ export default function VisualizePage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {correlationMatrix.columns.map((rowCol) => (
+                            {activeCorrelationMatrix.columns.map((rowCol) => (
                               <tr key={rowCol} className="hover:bg-muted/30">
                                 <td className="p-2 border border-border font-semibold text-foreground max-w-[130px] truncate" title={rowCol}>
                                   {rowCol}
                                 </td>
-                                {correlationMatrix.columns.map((colCol) => {
-                                  const r = correlationMatrix.matrix[rowCol]?.[colCol] ?? 0;
+                                {activeCorrelationMatrix.columns.map((colCol) => {
+                                  const r = activeCorrelationMatrix.matrix[rowCol]?.[colCol] ?? 0;
                                   const isPos = r >= 0;
                                   const intensity = Math.abs(r);
                                   const bgColor =
@@ -880,26 +1247,18 @@ export default function VisualizePage() {
                       </div>
                     </div>
                   )
-                ) : computedChartData.length === 0 ? (
+                ) : activeChartData.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-xs font-mono text-muted-foreground">
                     Select valid axes dimensions to render chart
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     {chartType === "bar" || chartType === "histogram" ? (
-                      <BarChart data={computedChartData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
+                      <BarChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
                         {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="opacity-10" vertical={false} />}
                         <XAxis dataKey="name" stroke="#71717A" fontSize={11} interval={0} angle={-25} textAnchor="end" />
                         <YAxis stroke="#71717A" fontSize={11} domain={[0, "auto"]} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            borderColor: "hsl(var(--border))",
-                            borderRadius: "8px",
-                            fontSize: "12px",
-                            color: "hsl(var(--foreground))",
-                          }}
-                        />
+                        <Tooltip content={<CustomChartTooltip />} />
                         {showLegend && <Legend verticalAlign="top" height={30} />}
                         <Bar
                           dataKey="value"
@@ -907,25 +1266,17 @@ export default function VisualizePage() {
                           fill="#10B981"
                           radius={[4, 4, 0, 0]}
                         >
-                          {computedChartData.map((_, index) => (
+                          {activeChartData.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={PALETTE[index % PALETTE.length]} />
                           ))}
                         </Bar>
                       </BarChart>
                     ) : chartType === "line" ? (
-                      <LineChart data={computedChartData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
+                      <LineChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
                         {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="opacity-10" />}
                         <XAxis dataKey="name" stroke="#71717A" fontSize={11} angle={-25} textAnchor="end" />
                         <YAxis stroke="#71717A" fontSize={11} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            borderColor: "hsl(var(--border))",
-                            borderRadius: "8px",
-                            fontSize: "12px",
-                            color: "hsl(var(--foreground))",
-                          }}
-                        />
+                        <Tooltip content={<CustomChartTooltip />} />
                         {showLegend && <Legend verticalAlign="top" height={30} />}
                         <Line
                           type="monotone"
@@ -938,7 +1289,7 @@ export default function VisualizePage() {
                         />
                       </LineChart>
                     ) : chartType === "area" ? (
-                      <AreaChart data={computedChartData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
+                      <AreaChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
                         <defs>
                           <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
@@ -948,15 +1299,7 @@ export default function VisualizePage() {
                         {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="opacity-10" />}
                         <XAxis dataKey="name" stroke="#71717A" fontSize={11} angle={-25} textAnchor="end" />
                         <YAxis stroke="#71717A" fontSize={11} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            borderColor: "hsl(var(--border))",
-                            borderRadius: "8px",
-                            fontSize: "12px",
-                            color: "hsl(var(--foreground))",
-                          }}
-                        />
+                        <Tooltip content={<CustomChartTooltip />} />
                         {showLegend && <Legend verticalAlign="top" height={30} />}
                         <Area
                           type="monotone"
@@ -971,35 +1314,21 @@ export default function VisualizePage() {
                     ) : chartType === "scatter" ? (
                       <ScatterChart margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                         {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="opacity-10" />}
-                        <XAxis dataKey="x" name={xAxisCol} stroke="#71717A" fontSize={11} />
-                        <YAxis dataKey="y" name={yAxisCol} stroke="#71717A" fontSize={11} />
+                        <XAxis dataKey="x" name={xAxisCol} type="number" stroke="#71717A" fontSize={11} domain={["auto", "auto"]} />
+                        <YAxis dataKey="y" name={yAxisCol} type="number" stroke="#71717A" fontSize={11} domain={["auto", "auto"]} />
                         <Tooltip
                           cursor={{ strokeDasharray: "3 3" }}
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            borderColor: "hsl(var(--border))",
-                            borderRadius: "8px",
-                            fontSize: "12px",
-                            color: "hsl(var(--foreground))",
-                          }}
+                          content={<CustomChartTooltip />}
                         />
                         {showLegend && <Legend verticalAlign="top" height={30} />}
-                        <Scatter name={`${xAxisCol} vs ${yAxisCol}`} data={computedChartData} fill="#10B981" />
+                        <Scatter name={`${xAxisCol} vs ${yAxisCol}`} data={activeChartData} fill="#10B981" />
                       </ScatterChart>
                     ) : (
                       <PieChart>
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            borderColor: "hsl(var(--border))",
-                            borderRadius: "8px",
-                            fontSize: "12px",
-                            color: "hsl(var(--foreground))",
-                          }}
-                        />
+                        <Tooltip content={<CustomChartTooltip />} />
                         {showLegend && <Legend verticalAlign="bottom" height={36} />}
                         <Pie
-                          data={computedChartData}
+                          data={activeChartData}
                           dataKey="value"
                           nameKey="name"
                           cx="50%"
@@ -1008,7 +1337,7 @@ export default function VisualizePage() {
                           outerRadius={95}
                           paddingAngle={chartType === "donut" ? 3 : 0}
                         >
-                          {computedChartData.map((_, index) => (
+                          {activeChartData.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={PALETTE[index % PALETTE.length]} />
                           ))}
                         </Pie>
@@ -1023,7 +1352,7 @@ export default function VisualizePage() {
                 <div className="border-t border-border pt-4">
                   <div className="flex items-center justify-between text-xs mb-3">
                     <span className="font-semibold text-foreground">Underlying Aggregation Table</span>
-                    <span className="font-mono text-muted-foreground">{computedChartData.length} records</span>
+                    <span className="font-mono text-muted-foreground">{activeChartData.length} records</span>
                   </div>
                   <div className="max-h-48 overflow-y-auto rounded-xl border border-border">
                     <table className="w-full text-left text-xs font-mono">
@@ -1039,7 +1368,7 @@ export default function VisualizePage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {computedChartData.map((row) => (
+                        {activeChartData.map((row) => (
                           <tr key={row.name} className="hover:bg-muted/40">
                             <td className="p-2.5 font-semibold text-foreground truncate max-w-xs">{row.name}</td>
                             <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">

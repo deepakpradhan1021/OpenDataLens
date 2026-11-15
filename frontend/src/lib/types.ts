@@ -462,4 +462,68 @@ export interface SharedReportResponse {
   message?: string;
 }
 
+export interface ChartDataRequest {
+  session_id?: string;
+  chart_type: string;
+  x_col: string;
+  y_col?: string;
+  aggregation?: string;
+  bins?: number;
+  bin_numeric?: boolean;
+  sort_by?: string;
+  top_n?: number;
+  filter_min?: number;
+  filter_max?: number;
+  exclude_nulls?: boolean;
+}
+
+export interface ChartDataInsights {
+  distribution_type?: string;
+  x_type?: string;
+  is_binned?: boolean;
+  aggregation_operator?: string;
+  is_constant?: boolean;
+  min_value?: number;
+  max_value?: number;
+  mean?: number;
+  median?: number;
+  std?: number;
+  observations?: number;
+  correlation?: number;
+  trend_type?: "constant" | "chronological" | "numeric_relationship" | "categorical_comparison";
+  growth_rate?: number;
+  summary_text?: string;
+  warning?: string;
+  error?: string;
+  strongest_pair?: {
+    feature_a: string;
+    feature_b: string;
+    correlation: number;
+  };
+  columns?: string[];
+  [key: string]: any;
+}
+
+export interface ChartDataItem {
+  name?: string;
+  value?: number;
+  count?: number;
+  x?: number;
+  y?: number;
+  bin_start?: number;
+  bin_end?: number;
+  mid?: number;
+  [key: string]: any;
+}
+
+export interface ChartDataResponse {
+  chart_type: string;
+  x_col?: string;
+  y_col?: string;
+  data: ChartDataItem[] | { columns: string[]; matrix: Record<string, Record<string, number>> };
+  insights: ChartDataInsights;
+  total_rows: number;
+  valid_rows?: number;
+}
+
 
