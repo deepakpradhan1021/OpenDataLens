@@ -5,7 +5,7 @@
 [![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20App-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://opendatalens-app.vercel.app)
 [![Render Backend](https://img.shields.io/badge/Render-Live%20API-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://opendatalens.onrender.com/docs)
 [![CI Pipeline](https://img.shields.io/github/actions/workflow/status/deepakpradhan1021/OpenDataLens/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI%20Pipeline)](https://github.com/deepakpradhan1021/OpenDataLens/actions/workflows/ci.yml)
-[![Pytest Suite](https://img.shields.io/badge/Pytest-134%20Passed%20(100%25)-10B981?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
+[![Pytest Suite](https://img.shields.io/badge/Pytest-143%20Passed%20(100%25)-10B981?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
 **A portfolio-grade machine learning workbench and automated model evaluation platform.**  
@@ -30,7 +30,10 @@
 | **Multi-Format Ingestion** | `pandas`, `openpyxl`, `pypdf`, and custom SQL parser | Ingests CSV, TSV, Excel `.xlsx`/`.xls`, JSON, JSONL, PDF tabular text, and SQL dump files up to 25MB |
 | **Interactive Data Cleaning Studio** | `core/cleaner.py` with 8-checkpoint memory bound in `SessionStore` | Missing value imputation, deduplication, type casting, outlier removal (IQR/Z-Score), deterministic row sorting, feature normalization (Min-Max/Z-Score/Robust), non-destructive dry-run previews, and named checkpoints |
 | **Multi-Chart Visual Analytics** | Recharts & SVG responsive visualization engine (`/visualize`) | 8 chart architectures (Bar, Line, Area, Scatter, Donut, Pie, Continuous-Bin Histogram, and 2D Correlation Heatmap) with dynamic filtering and PNG / SVG export |
-| **Multi-Sheet Excel Dossiers** | OpenPyXL multi-tab serialization (`core/report_generator.py`) | 4-sheet `.xlsx` workbook (Overview, Data Dictionary, Quality Audit, Model Scoreboard, Sample Records) |
+| **Multi-Sheet Excel Dossiers** | OpenPyXL multi-tab serialization (`core/report_generator.py`) | 6-sheet `.xlsx` workbook (Overview, Data Dictionary, Quality Audit, Cleaning Lineage, Model Scoreboard, Sample Records) |
+| **Executive PDF Engine** | ReportLab multi-page document compiler with `NumberedCanvas` | Executive publication-ready PDF with running headers/footers, KPI summary cards, quality metrics, lineage trail, and dynamic section toggling |
+| **Saved Projects & Lineage** | File-backed JSON & Parquet persistence in `storage/projects/` | Save, list, restore workspaces, export/import portable `.odl` bundle packages with zero external DB dependencies |
+| **Secure Sharing Engine** | Cryptographic tokens with optional SHA-256 password & TTL | Public read-only report view (`/share/[token]`), configurable expiration (24h/7d/30d/permanent), instant revocation, zero credential exposure |
 | **AI Analyst & Intelligent Agent** | 3-tier fallback (`OpenAICompatibleProvider` → `LocalDeterministicAnalyst`) with action approval | Conversational data analysis, metadata-first privacy (zero raw data exposure without consent), BYOK key support, prompt-injection defense, and human-in-the-loop reversible data transformation execution |
 | **Workspace Session Isolation** | Cryptographic UUIDv4 tokens via `SessionStore` & TTL eviction | Multi-tenant session separation; zero cross-user state leakage; 1-click workspace clearing |
 | **Explainable AI (XAI)** | `sklearn.inspection.permutation_importance` on held-out test split | Permutation Feature Importance, native model weights, single-sample prediction attribution |

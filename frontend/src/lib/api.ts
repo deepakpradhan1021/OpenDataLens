@@ -25,6 +25,10 @@ import {
   PreviewCleanResponse,
   NamedCheckpointItem,
   NamedCheckpointsResponse,
+  ReportPreviewResponse,
+  SavedProject,
+  ShareInfo,
+  SharedReportResponse,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -627,14 +631,29 @@ export const api = {
   },
 
   // Reports
+  getPdfReportUrl: (sections?: string[], sessionId?: string) => {
+    const sid = sessionId || getWorkspaceId();
+    const secParam = sections && sections.length > 0 ? `&sections=${sections.join(",")}` : "";
+    return `${API_BASE_URL}/reports/pdf?session_id=${sid}${secParam}`;
+  },
+
+  getReportPreview: async (sessionId?: string): Promise<ReportPreviewResponse> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.get("/reports/preview", {
+      params: { session_id: sid },
+    });
+    return data;
+  },
+
   downloadHtmlReport: (sessionId?: string) => {
     const sid = sessionId || getWorkspaceId();
     return `${API_BASE_URL}/reports/html?session_id=${sid}`;
   },
 
-  getHtmlReportUrl: (sessionId?: string) => {
+  getHtmlReportUrl: (sections?: string[], sessionId?: string) => {
     const sid = sessionId || getWorkspaceId();
-    return `${API_BASE_URL}/reports/html?session_id=${sid}`;
+    const secParam = sections && sections.length > 0 ? `&sections=${sections.join(",")}` : "";
+    return `${API_BASE_URL}/reports/html?session_id=${sid}${secParam}`;
   },
 
   downloadJsonReport: (sessionId?: string) => {
@@ -669,7 +688,12 @@ export const api = {
 
   getDatasetCsvUrl: (sessionId?: string) => {
     const sid = sessionId || getWorkspaceId();
-    return `${API_BASE_URL}/reports/dataset-csv?session_id=${sid}`;
+    return `${API_BASE_URL}/reports/csv?session_id=${sid}`;
+  },
+
+  getCsvReportUrl: (sessionId?: string) => {
+    const sid = sessionId || getWorkspaceId();
+    return `${API_BASE_URL}/reports/csv?session_id=${sid}`;
   },
 
   getExcelReportUrl: (sessionId?: string) => {
@@ -680,5 +704,81 @@ export const api = {
   getProjectStateUrl: (sessionId?: string) => {
     const sid = sessionId || getWorkspaceId();
     return `${API_BASE_URL}/reports/project-state?session_id=${sid}`;
+  },
+
+  // Saved Projects Engine
+  listProjects: async (): Promise<{ projects: SavedProject[] }> => {
+    const { data } = await apiClient.get("/projects");
+    return data;
+  },
+
+  saveProject: async (
+    name: string,
+    description: string = "",
+    projectId?: string,
+    sessionId?: string
+  ): Promise<{ status: string; project: SavedProject }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/projects/save", {
+      name,
+      description,
+      project_id: projectId,
+      session_id: sid,
+    });
+    return data;
+  },
+
+  getProject: async (projectId: string): Promise<any> => {
+    const { data } = await apiClient.get(`/projects/${projectId}`);
+    return data;
+  },
+
+  loadProject: async (projectId: string, sessionId?: string): Promise<{ status: string; result: any }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post(`/projects/${projectId}/load`, {
+      session_id: sid,
+    });
+    return data;
+  },
+
+  deleteProject: async (projectId: string): Promise<{ status: string; message: string }> => {
+    const { data } = await apiClient.delete(`/projects/${projectId}`);
+    return data;
+  },
+
+  getProjectBundleUrl: (projectId: string) => {
+    return `${API_BASE_URL}/projects/${projectId}/bundle`;
+  },
+
+  // Secure Sharing Engine
+  createShare: async (
+    params: {
+      title?: string;
+      sections?: string[];
+      password?: string;
+      expires_in_hours?: number;
+    },
+    sessionId?: string
+  ): Promise<{ status: string; share: ShareInfo }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.post("/share/create", {
+      ...params,
+      session_id: sid,
+    });
+    return data;
+  },
+
+  getSharedReport: async (token: string, password?: string): Promise<SharedReportResponse> => {
+    const headers: Record<string, string> = {};
+    if (password) {
+      headers["X-Share-Password"] = password;
+    }
+    const { data } = await apiClient.get(`/share/${token}`, { headers });
+    return data;
+  },
+
+  revokeShare: async (token: string): Promise<{ status: string; message: string }> => {
+    const { data } = await apiClient.delete(`/share/${token}`);
+    return data;
   },
 };

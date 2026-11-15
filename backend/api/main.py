@@ -22,7 +22,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api.routes import health, datasets, quality, ml, evaluation, reports, drift, copilot
+from backend.api.routes import health, datasets, quality, ml, evaluation, reports, drift, copilot, projects, share
 
 app = FastAPI(
     title="OpenDataLens SaaS API",
@@ -83,6 +83,8 @@ app.include_router(evaluation.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(drift.router, prefix="/api")
 app.include_router(copilot.router, prefix="/api")
+app.include_router(projects.router, prefix="/api")
+app.include_router(share.router, prefix="/api")
 
 
 @app.get("/")

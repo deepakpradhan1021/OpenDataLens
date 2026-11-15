@@ -429,7 +429,7 @@ def apply_cleaning_action(df: pd.DataFrame, action_type: str, params: Dict[str, 
     elif act == "rename_column":
         return rename_column(
             df=df,
-            old_name=params.get("old_name", ""),
+            old_name=params.get("old_name") or params.get("column", ""),
             new_name=params.get("new_name", "")
         )
     elif act == "drop_columns":

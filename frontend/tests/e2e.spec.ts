@@ -115,15 +115,34 @@ test.describe("OpenDataLens End-to-End Suite", () => {
     await expect(page.getByText("Schema Integrity")).toBeVisible();
   });
 
-  test("7. Reports page provides direct download endpoints", async ({ page }) => {
+  test("7. Reports page provides direct download endpoints, saved projects, and share modal", async ({ page }) => {
     await page.goto("/reports");
-    await expect(page.getByRole("heading", { name: "Evaluation Reports & Model Export" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "Analytics Reports & Export Depot" })).toBeVisible({ timeout: 10000 });
 
-    // Verify report cards
+    // Verify primary export cards
+    await expect(page.getByText("Executive PDF Report (.pdf)")).toBeVisible();
+    await expect(page.getByText("Executive Excel Dossier (.xlsx)")).toBeVisible();
+    await expect(page.getByText("Cleaned Dataset (.csv)")).toBeVisible();
     await expect(page.getByText("Interactive HTML Dossier")).toBeVisible();
-    await expect(page.getByText("Machine-Readable JSON")).toBeVisible();
-    await expect(page.getByText("GitHub README Summary")).toBeVisible();
-    await expect(page.getByText(/Export Serialized Scikit-learn Pipeline/i)).toBeVisible();
+    await expect(page.getByText("Machine-Readable JSON (.json)")).toBeVisible();
+    await expect(page.getByText("GitHub README Summary (.md)")).toBeVisible();
+
+    // Verify Action Toolbar buttons
+    await expect(page.getByRole("button", { name: "Preview Report" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save Project" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Saved Projects/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Share Analysis" })).toBeVisible();
+
+    // Open and verify Preview Modal
+    await page.getByRole("button", { name: "Preview Report" }).click();
+    await expect(page.getByText("Interactive Report Preview")).toBeVisible();
+    await page.locator(".fixed").locator("button").filter({ has: page.locator("svg.lucide-x") }).first().click();
+
+    // Open and verify Share Modal
+    await page.getByRole("button", { name: "Share Analysis" }).click();
+    await expect(page.getByText("Share Report Link")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Generate Secure Link" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
   });
 
   test("8. Mobile responsive viewport test", async ({ page }) => {

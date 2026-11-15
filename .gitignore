@@ -73,5 +73,6 @@ Thumbs.db
 models_cache/
 temp_data/
 data/
+storage/
 *.tsbuildinfo
 master_prompt_content.txt

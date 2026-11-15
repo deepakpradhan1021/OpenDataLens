@@ -387,3 +387,79 @@ export interface NamedCheckpointsResponse {
   count: number;
 }
 
+export interface ReportPreviewResponse {
+  dataset_meta: Record<string, any>;
+  quality_summary: Record<string, any>;
+  clean_history: Array<Record<string, any>>;
+  model_evaluations: Record<string, any>;
+  best_model_info: Record<string, any> | null;
+  problem_type: string;
+  preview_records: Array<Record<string, any>>;
+  columns_summary: Array<{
+    name: string;
+    type: string;
+    missing: number;
+    unique: number;
+  }>;
+}
+
+export interface SavedProject {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  dataset_name: string;
+  total_rows: number;
+  total_columns: number;
+  clean_steps_count: number;
+  models_trained_count: number;
+  has_dataset: boolean;
+}
+
+export interface ShareInfo {
+  token: string;
+  share_url: string;
+  title: string;
+  created_at: string;
+  expires_at: string | null;
+  is_password_protected: boolean;
+  sections: string[];
+}
+
+export interface SharedReportResponse {
+  status: "active" | "password_required" | "expired" | "not_found" | "invalid_password" | "error";
+  token?: string;
+  title?: string;
+  created_at?: string;
+  expires_at?: string | null;
+  sections?: string[];
+  report_data?: {
+    dataset_name: string;
+    source: string;
+    total_rows: number;
+    total_cols: number;
+    columns: Array<{ name: string; type: string; null_count: number; unique_count: number }>;
+    quality_overview: {
+      completeness_score: number;
+      health_score: number;
+      duplicate_rows: number;
+      missing_cells: number;
+    };
+    clean_history: Array<Record<string, any>>;
+    ml: {
+      problem_type?: string;
+      target_col?: string;
+      feature_cols?: string[];
+      leaderboard: Array<{
+        model_name: string;
+        metrics: Record<string, any>;
+        fit_time: number;
+      }>;
+    };
+    preview_records?: Array<Record<string, any>>;
+  };
+  message?: string;
+}
+
+
