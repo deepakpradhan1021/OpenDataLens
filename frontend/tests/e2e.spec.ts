@@ -33,11 +33,22 @@ test.describe("OpenDataLens End-to-End Suite", () => {
     await expect(page.getByText("Leaderboard & Scoreboard").first()).toBeVisible();
   });
 
-  test("2. Dataset Explorer loads curated dataset into active memory", async ({ page }) => {
+  test("2. Dataset Explorer loads curated dataset into active memory and displays multi-format dropzone", async ({ page }) => {
     await page.goto("/explorer");
     await expect(page.getByRole("heading", { name: "Dataset Discovery" })).toBeVisible();
 
-    // Wait for curated dataset card and click Mount/Reload
+    // Verify Multi-format Upload Tab and Drag-and-Drop Zone
+    const uploadTab = page.getByRole("button", { name: /Upload File/i });
+    await uploadTab.click();
+    await expect(page.getByText(/Drag & Drop or Upload Dataset/i)).toBeVisible();
+    await expect(page.getByText(".xlsx, .xls")).toBeVisible();
+    await expect(page.getByText(".json, .jsonl")).toBeVisible();
+    await expect(page.getByText(".pdf")).toBeVisible();
+    await expect(page.getByText(".sql")).toBeVisible();
+
+    // Switch back to Curated tab, wait for curated dataset card and click Mount/Reload
+    const curatedTab = page.getByRole("button", { name: /Curated Benchmarks/i });
+    await curatedTab.click();
     const mountBtn = page.getByRole("button", { name: /Mount|Reload/i }).first();
     await expect(mountBtn).toBeVisible({ timeout: 10000 });
     await mountBtn.click();

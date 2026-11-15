@@ -136,6 +136,11 @@ async def upload_file(
         )
 
     content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The uploaded file '{file.filename}' is empty (0 bytes). Please upload a valid dataset."
+        )
     if len(content) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=413,

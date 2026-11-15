@@ -309,17 +309,34 @@ export const api = {
     return data;
   },
 
-  uploadCSV: async (file: File, sessionId?: string): Promise<DatasetPreviewResponse> => {
-    return api.uploadFile(file, sessionId);
+  uploadCSV: async (
+    file: File,
+    sessionId?: string,
+    onProgress?: (percent: number) => void,
+    signal?: AbortSignal
+  ): Promise<DatasetPreviewResponse> => {
+    return api.uploadFile(file, sessionId, onProgress, signal);
   },
 
-  uploadFile: async (file: File, sessionId?: string): Promise<DatasetPreviewResponse> => {
+  uploadFile: async (
+    file: File,
+    sessionId?: string,
+    onProgress?: (percent: number) => void,
+    signal?: AbortSignal
+  ): Promise<DatasetPreviewResponse> => {
     const sid = sessionId || getWorkspaceId();
     const formData = new FormData();
     formData.append("file", file);
     formData.append("session_id", sid);
     const { data } = await apiClient.post("/datasets/upload-file", formData, {
       headers: { "Content-Type": "multipart/form-data" },
+      signal,
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percent);
+        }
+      },
     });
     return data;
   },

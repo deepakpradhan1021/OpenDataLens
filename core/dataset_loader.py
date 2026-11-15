@@ -323,35 +323,63 @@ def load_excel_dataset(
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Safely load an Excel workbook (.xlsx / .xls) into a pandas DataFrame.
-    Automatically parses the first active worksheet and handles headers.
+    Prevents macro/VBA execution using openpyxl data_only mode.
+    Automatically detects the first non-empty worksheet and handles headers.
     """
     if isinstance(file_or_path, bytes):
-        bio = io.BytesIO(file_or_path)
+        content = file_or_path
     elif hasattr(file_or_path, "read"):
         content = file_or_path.read()
-        bio = io.BytesIO(content if isinstance(content, bytes) else content.encode("utf-8"))
+        if isinstance(content, str):
+            content = content.encode("utf-8")
     else:
         with open(file_or_path, "rb") as f:
-            bio = io.BytesIO(f.read())
+            content = f.read()
+
+    if len(content.strip()) == 0:
+        raise ValueError("The provided Excel file is completely empty.")
+
+    bio = io.BytesIO(content)
 
     try:
-        excel_file = pd.ExcelFile(bio)
-        sheet_name = excel_file.sheet_names[0] if excel_file.sheet_names else "Sheet1"
-        df = pd.read_excel(excel_file, sheet_name=sheet_name, nrows=max_rows)
+        excel_file = pd.ExcelFile(bio, engine="openpyxl")
+        sheet_names = excel_file.sheet_names
+        if not sheet_names:
+            raise ValueError("Excel file contains no worksheets.")
+
+        chosen_sheet = None
+        df = pd.DataFrame()
+        # Scan for first non-empty sheet
+        for sheet in sheet_names:
+            sample_df = pd.read_excel(excel_file, sheet_name=sheet, nrows=5)
+            if not sample_df.empty and sample_df.shape[1] > 0:
+                chosen_sheet = sheet
+                df = pd.read_excel(excel_file, sheet_name=sheet, nrows=max_rows)
+                break
+
+        if chosen_sheet is None:
+            chosen_sheet = sheet_names[0]
+            df = pd.read_excel(excel_file, sheet_name=chosen_sheet, nrows=max_rows)
+
     except Exception as e:
-        raise ValueError(f"Failed to parse Excel file: {str(e)}")
+        raise ValueError(f"Failed to parse Excel file '{filename}': {str(e)}")
 
     if df.empty:
-        raise ValueError("Excel file contains 0 rows or is empty.")
+        raise ValueError(f"Excel file '{filename}' contains 0 records or all sheets are empty.")
 
     df.columns = [str(col).strip() for col in df.columns]
+    df = df.dropna(how="all").dropna(axis=1, how="all")
+    if df.empty:
+        raise ValueError(f"Excel file '{filename}' contains only empty/blank cells.")
+
     metadata = {
         "id": filename.rsplit(".", 1)[0].lower(),
         "name": filename,
         "filename": filename,
         "rows": int(df.shape[0]),
         "cols": int(df.shape[1]),
-        "sheet_name": sheet_name,
+        "sheet_name": chosen_sheet,
+        "available_sheets": sheet_names,
         "source": "excel"
     }
     return df, metadata
@@ -364,7 +392,8 @@ def load_json_dataset(
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Load JSON / JSON-Lines tabular data.
-    Supports records arrays `[{...}, ...]`, tabular wrappers `{"data": [...]}`, or key-value objects.
+    Supports records arrays `[{...}, ...]`, split format `{"columns": [...], "data": [...]}`,
+    tabular wrappers `{"data": [...]}`, column-oriented dicts `{"col": [...]}`, or JSON Lines.
     """
     import json
     if isinstance(file_or_path, bytes):
@@ -380,6 +409,7 @@ def load_json_dataset(
         raise ValueError("The provided JSON file is empty.")
 
     parsed = None
+    parse_mode = "json"
     try:
         parsed = json.loads(raw_text)
     except Exception as e:
@@ -388,29 +418,67 @@ def load_json_dataset(
             lines = [json.loads(line) for line in raw_text.strip().splitlines() if line.strip()]
             if lines:
                 parsed = lines
+                parse_mode = "jsonl"
         except Exception:
             raise ValueError(f"Failed to parse JSON file: {str(e)}")
 
+    if parsed is None or (isinstance(parsed, (list, dict)) and len(parsed) == 0):
+        raise ValueError("JSON file contains an empty root object or empty array.")
+
+    df = None
     if isinstance(parsed, list):
-        if not parsed:
+        if len(parsed) == 0:
             raise ValueError("JSON file contains an empty array.")
-        df = pd.DataFrame(parsed[:max_rows] if max_rows else parsed)
-    elif isinstance(parsed, dict):
-        # Look for standard tabular wrapper keys
-        for key in ["data", "rows", "records", "items", "dataset", "results"]:
-            if key in parsed and isinstance(parsed[key], list) and len(parsed[key]) > 0:
-                df = pd.DataFrame(parsed[key][:max_rows] if max_rows else parsed[key])
-                break
+        if isinstance(parsed[0], dict):
+            df = pd.DataFrame(parsed[:max_rows] if max_rows else parsed)
+        elif isinstance(parsed[0], list):
+            df = pd.DataFrame(parsed[:max_rows] if max_rows else parsed)
         else:
+            df = pd.DataFrame({"value": parsed[:max_rows] if max_rows else parsed})
+
+    elif isinstance(parsed, dict):
+        # 1. Standard Split Format: {"columns": [...], "data": [[...], ...]}
+        if "columns" in parsed and "data" in parsed and isinstance(parsed["data"], list):
+            cols = parsed["columns"]
+            data = parsed["data"][:max_rows] if max_rows else parsed["data"]
+            index = parsed.get("index")
+            df = pd.DataFrame(data=data, columns=cols, index=index[:len(data)] if index else None)
+
+        # 2. Tabular wrapper keys: {"data": [...]}, {"records": [...]}, etc.
+        if df is None:
+            for key in ["data", "rows", "records", "items", "dataset", "results"]:
+                if key in parsed and isinstance(parsed[key], list) and len(parsed[key]) > 0:
+                    val = parsed[key][:max_rows] if max_rows else parsed[key]
+                    if isinstance(val[0], dict):
+                        df = pd.DataFrame(val)
+                    elif isinstance(val[0], list):
+                        df = pd.DataFrame(val)
+                    break
+
+        # 3. Column-oriented dict: {"col1": [1, 2], "col2": [3, 4]}
+        if df is None:
+            if all(isinstance(v, list) for v in parsed.values()) and len(parsed) > 0:
+                try:
+                    df = pd.DataFrame(parsed)
+                    if max_rows:
+                        df = df.head(max_rows)
+                except Exception:
+                    df = None
+
+        # 4. Fallback from_dict or single record
+        if df is None:
             try:
                 df = pd.DataFrame.from_dict(parsed)
+                if max_rows:
+                    df = df.head(max_rows)
             except Exception:
                 df = pd.DataFrame([parsed])
+
     else:
         raise ValueError(f"Unsupported JSON root type: {type(parsed).__name__}. Expected array or object.")
 
-    if df.empty:
-        raise ValueError("Parsed JSON produced an empty dataset.")
+    if df is None or df.empty:
+        raise ValueError("Parsed JSON produced an empty dataset with 0 rows.")
 
     df.columns = [str(col).strip() for col in df.columns]
     metadata = {
@@ -419,6 +487,7 @@ def load_json_dataset(
         "filename": filename,
         "rows": int(df.shape[0]),
         "cols": int(df.shape[1]),
+        "format": parse_mode,
         "source": "json"
     }
     return df, metadata
@@ -431,7 +500,8 @@ def load_pdf_dataset(
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Extract structured tabular records from PDF documents.
-    Detects delimiter patterns (tabs, pipes, commas, aligned whitespace) across pages.
+    Validates whether genuine extractable tabular rows exist.
+    Rejects scanned/image-only PDFs or unformatted prose with helpful guidance.
     """
     import pypdf
     import re
@@ -449,7 +519,7 @@ def load_pdf_dataset(
         reader = pypdf.PdfReader(bio)
         num_pages = len(reader.pages)
         if num_pages == 0:
-            raise ValueError("PDF has 0 pages.")
+            raise ValueError("PDF contains 0 pages.")
 
         all_lines = []
         for p in reader.pages:
@@ -462,10 +532,15 @@ def load_pdf_dataset(
         raise ValueError(f"Failed to read PDF document: {str(e)}")
 
     if not all_lines:
-        raise ValueError("Could not extract any readable text from the provided PDF.")
+        raise ValueError(
+            "Could not extract any readable text from the provided PDF. "
+            "Scanned or image-only PDFs require optical character recognition (OCR), which is not supported. "
+            "Please upload a PDF containing selectable digital text or export the table directly as CSV/Excel."
+        )
 
     table_rows = []
     header = None
+
     for line in all_lines:
         if "\t" in line:
             parts = [p.strip() for p in line.split("\t") if p.strip()]
@@ -476,6 +551,7 @@ def load_pdf_dataset(
         else:
             parts = [p.strip() for p in re.split(r"\s{2,}", line) if p.strip()]
 
+        # Only consider multi-column tokens (at least 2 distinct columns)
         if len(parts) >= 2:
             if header is None:
                 header = parts
@@ -488,11 +564,16 @@ def load_pdf_dataset(
                     parts = parts[:len(header)]
                 table_rows.append(parts)
 
-    if not table_rows or header is None:
-        table_rows = [[i + 1, line] for i, line in enumerate(all_lines[:max_rows] if max_rows else all_lines)]
-        header = ["Line", "Extracted_Text"]
+    # Validation: If no multi-column tabular data was found across all pages
+    if not table_rows or header is None or len(header) < 2:
+        raise ValueError(
+            "No extractable tabular data found in the provided PDF. "
+            "OpenDataLens requires PDFs containing structured tables (with columns separated by tabs, pipes, commas, or columnar whitespace). "
+            "Scanned/image-only PDFs and free-form narrative prose are not supported."
+        )
 
     df = pd.DataFrame(table_rows[:max_rows] if max_rows else table_rows, columns=header)
+
     cols = []
     seen = {}
     for c in df.columns:
@@ -529,7 +610,9 @@ def load_sql_dataset(
     max_rows: Optional[int] = None
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Parse SQL dump statements (CREATE TABLE & INSERT INTO) into a pandas DataFrame.
+    Safely parse SQL dump statements (CREATE TABLE & INSERT INTO) into a pandas DataFrame.
+    Strictly offline static parser: never connects to external databases or executes arbitrary SQL.
+    Disallows administrative, remote-execution, or destructive commands for security.
     """
     import re
     if isinstance(file_or_path, bytes):
@@ -541,8 +624,31 @@ def load_sql_dataset(
         with open(file_or_path, "r", encoding="utf-8", errors="replace") as f:
             raw_text = f.read()
 
+    if not raw_text.strip():
+        raise ValueError("The provided SQL file is empty.")
+
+    # Security check: Disallow dangerous / administrative statements
+    dangerous_patterns = [
+        (r"\bDROP\s+(?:DATABASE|SCHEMA|TABLE|VIEW|PROCEDURE|FUNCTION|TRIGGER)\b", "DROP statement"),
+        (r"\bALTER\s+(?:USER|ROLE|SYSTEM|DATABASE)\b", "Administrative ALTER statement"),
+        (r"\bTRUNCATE\s+(?:TABLE)?\b", "TRUNCATE statement"),
+        (r"\bEXEC(?:UTE)?\s+xp_\w+", "Extended stored procedure execution"),
+        (r"\b(?:SHUTDOWN|RESTART)\b", "Server shutdown command"),
+        (r"\bGRANT\s+.*\bTO\b", "Privilege GRANT statement"),
+        (r"\bREVOKE\s+.*\bFROM\b", "Privilege REVOKE statement"),
+        (r"\bATTACH\s+DATABASE\b", "ATTACH DATABASE statement"),
+        (r"\bLOAD_EXTENSION\b", "LOAD_EXTENSION command")
+    ]
+    for pattern, label in dangerous_patterns:
+        if re.search(pattern, raw_text, re.IGNORECASE):
+            raise ValueError(
+                f"Security Warning: Uploaded SQL file contains disallowed or dangerous statement ({label}). "
+                f"OpenDataLens operates in zero-execution static mode and only safely extracts data from CREATE TABLE and INSERT INTO statements. "
+                f"Destructive, administrative, or remote execution statements are strictly forbidden."
+            )
+
     insert_pattern = re.compile(
-        r"INSERT\s+INTO\s+[`\"']?(\w+)[`\"']?\s*(?:\(([^)]+)\))?\s+VALUES\s*([\s\S]+?);",
+        r"INSERT\s+INTO\s+[`\"']?(\w+)[`\"']?\s*(?:\(([^)]+)\))?\s+VALUES\s*([\s\S]+?)(?:;|$)",
         re.IGNORECASE
     )
     matches = insert_pattern.findall(raw_text)
@@ -577,6 +683,12 @@ def load_sql_dataset(
                 records.append(vals)
 
     if not records:
+        if re.search(r"\bSELECT\b", raw_text, re.IGNORECASE):
+            raise ValueError(
+                "Unsupported SQL statement: Query statements (e.g. SELECT) without table definitions or literal INSERT records cannot be converted into an offline dataset. "
+                "OpenDataLens does not connect to live databases. Please upload a SQL dump containing CREATE TABLE and INSERT INTO statements, or export query results as CSV."
+            )
+
         create_pattern = re.compile(r"CREATE\s+TABLE\s+[`\"']?(\w+)[`\"']?\s*\(([\s\S]+?)\);", re.IGNORECASE)
         create_match = create_pattern.search(raw_text)
         if create_match:
@@ -600,7 +712,10 @@ def load_sql_dataset(
                     "source": "sql"
                 }
                 return df, metadata
-        raise ValueError("Could not parse SQL table or INSERT records. Ensure file contains standard SQL DDL or DML statements.")
+        raise ValueError(
+            "Could not parse SQL table or INSERT records. "
+            "Ensure the file contains standard SQL DDL (CREATE TABLE) and DML (INSERT INTO) statements with literal values."
+        )
 
     if columns is None:
         columns = [f"col_{i+1}" for i in range(len(records[0]))]
@@ -631,6 +746,9 @@ def load_uploaded_file(
     Unified ingestion router that inspects file extension and safely parses
     CSV, Excel (.xlsx, .xls), JSON (.json, .jsonl), PDF tables (.pdf), and SQL dumps (.sql).
     """
+    if isinstance(file_or_path, bytes) and len(file_or_path.strip()) == 0:
+        raise ValueError("The uploaded file is empty (0 bytes).")
+
     fn = filename.lower().strip()
     if fn.endswith((".csv", ".tsv", ".txt")):
         return load_csv_dataset(file_or_path, filename=filename, max_rows=max_rows)

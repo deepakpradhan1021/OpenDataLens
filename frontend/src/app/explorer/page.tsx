@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import axios from "axios";
 import {
   Database,
   Search,
   Upload,
+  UploadCloud,
   CheckCircle2,
   AlertCircle,
   Table as TableIcon,
@@ -18,6 +20,9 @@ import {
   Cpu,
   ShieldCheck,
   FileSpreadsheet,
+  FileText,
+  FileCode,
+  XCircle,
 } from "lucide-react";
 import { Ring } from "@/components/loading-ui/ring";
 import { api, categorizeApiError } from "@/lib/api";
@@ -36,6 +41,13 @@ export default function ExplorerPage() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Multi-format Upload & Drag-and-Drop state
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState<string>("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Filters & View Mode
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -76,12 +88,18 @@ export default function ExplorerPage() {
     }
   };
 
-  const handleSearchHF = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleSearchHF = async (customQuery?: string | React.FormEvent) => {
+    if (customQuery && typeof customQuery === "object" && "preventDefault" in customQuery) {
+      customQuery.preventDefault();
+    }
+    const q = typeof customQuery === "string" ? customQuery : hfQuery;
+    if (typeof customQuery === "string") {
+      setHfQuery(customQuery);
+    }
     setSearching(true);
     setError(null);
     try {
-      const data = await api.searchHFDatasets(hfQuery, 9);
+      const data = await api.searchHFDatasets(q, 9);
       setHfResults(data);
     } catch (err: any) {
       const cat = categorizeApiError(err);
@@ -115,28 +133,97 @@ export default function ExplorerPage() {
     }
   };
 
-  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || loading) return;
+  const processUpload = async (file: File) => {
+    if (loading) return;
+
+    // Client-side validations
+    if (file.size === 0) {
+      setError(`The selected file '${file.name}' is empty (0 bytes). Please select a valid dataset.`);
+      return;
+    }
+
+    if (file.size > 25 * 1024 * 1024) {
+      setError(
+        `File size exceeds 25 MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB). Please upload a dataset under 25 MB.`
+      );
+      return;
+    }
+
+    const ext = "." + (file.name.split(".").pop()?.toLowerCase() || "");
+    const allowed = [".csv", ".tsv", ".txt", ".xlsx", ".xls", ".json", ".jsonl", ".pdf", ".sql"];
+    if (!allowed.includes(ext)) {
+      setError(
+        `Unsupported format '${ext}'. Supported extensions: CSV (.csv, .tsv), Excel (.xlsx, .xls), JSON (.json, .jsonl), PDF (.pdf), and SQL (.sql).`
+      );
+      return;
+    }
+
+    setSelectedFile(file);
     setLoading(true);
+    setUploadProgress(15);
+    setUploadStage("Validating file signature...");
     setError(null);
     setSuccessMsg(null);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const data = await api.uploadFile(file);
+      setUploadStage("Streaming to secure in-memory buffer...");
+      const data = await api.uploadFile(
+        file,
+        undefined,
+        (percent) => {
+          setUploadProgress(Math.max(20, Math.min(85, percent)));
+          if (percent > 75) {
+            setUploadStage("Sniffing schema, delimiters & types...");
+          }
+        },
+        controller.signal
+      );
+
+      setUploadProgress(100);
+      setUploadStage("Audit complete!");
       setActiveDataset(data);
-      const ext = file.name.split(".").pop()?.toUpperCase() || "FILE";
-      setSuccessMsg(`Parsed ${ext} '${file.name}' successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
+      const displayExt = ext.replace(".", "").toUpperCase();
+      setSuccessMsg(
+        `Parsed ${displayExt} '${file.name}' successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`
+      );
     } catch (err: any) {
-      const cat = categorizeApiError(err);
-      if (cat.type === "cold_start") {
-        setError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Please upload your file again in a moment.");
-      } else if (cat.type === "timeout") {
-        setError("Upload timed out after 75s. The backend may still be starting up. Please try again.");
+      if (axios.isCancel(err) || err.name === "CanceledError" || err.code === "ERR_CANCELED") {
+        setError("File upload was cancelled by user.");
       } else {
-        setError(cat.message || "Failed to upload file.");
+        const cat = categorizeApiError(err);
+        if (cat.type === "cold_start") {
+          setError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Please upload your file again in a moment.");
+        } else if (cat.type === "timeout") {
+          setError("Upload timed out after 75s. The backend may still be starting up. Please try again.");
+        } else {
+          setError(cat.message || "Failed to upload file.");
+        }
       }
     } finally {
       setLoading(false);
+      setSelectedFile(null);
+      setUploadProgress(0);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleCancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setLoading(false);
+    setSelectedFile(null);
+    setUploadProgress(0);
+    setError("Upload cancelled by user.");
+  };
+
+  const handleUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processUpload(file);
       e.target.value = "";
     }
   };
@@ -376,6 +463,20 @@ export default function ExplorerPage() {
                   <span>Search Hub</span>
                 </button>
               </form>
+
+              {/* Search Shortcut Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[11px] text-muted-foreground mr-1">Popular categories:</span>
+                {["tabular", "healthcare", "finance", "california_housing", "iris", "sentiment"].map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => handleSearchHF(chip)}
+                    className="px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/80 text-foreground border border-border text-[11px] font-mono transition-colors"
+                  >
+                    #{chip}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -415,49 +516,108 @@ export default function ExplorerPage() {
           </div>
         )}
 
-        {/* TAB 3: MULTI-FORMAT UPLOAD */}
+        {/* TAB 3: MULTI-FORMAT UPLOAD & DRAG-AND-DROP */}
         {activeTab === "csv" && (
-          <div className="rounded-2xl border-2 border-dashed border-border bg-card/60 p-10 sm:p-12 text-center space-y-6 shadow-sm">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-              <Upload className="w-7 h-7" />
-            </div>
+          <div className="space-y-6">
+            <div
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+                const droppedFile = e.dataTransfer.files?.[0];
+                if (droppedFile) processUpload(droppedFile);
+              }}
+              className={`rounded-2xl border-2 border-dashed p-8 sm:p-12 text-center transition-all duration-200 shadow-sm relative ${
+                isDragging
+                  ? "border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30 scale-[1.01]"
+                  : "border-border bg-card/60 hover:border-emerald-500/50 hover:bg-card"
+              }`}
+            >
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-4">
+                <UploadCloud className={`w-7 h-7 transition-transform ${isDragging ? "scale-110" : ""}`} />
+              </div>
 
-            <div className="space-y-2">
-              <h3 className="font-bold text-base text-foreground">Upload Dataset in Multiple Formats</h3>
-              <p className="text-xs text-muted-foreground max-w-lg mx-auto leading-relaxed">
-                Native parsing engine for structured data. Automatic delimiter sniffing, multi-sheet Excel extraction, JSON records unrolling, PDF tabular line detection, and SQL DDL/INSERT statements. Files up to 25MB are parsed and cached in session store.
-              </p>
-            </div>
+              <div className="space-y-2 mb-6">
+                <h3 className="font-bold text-base text-foreground">
+                  {isDragging ? "Drop your dataset file here" : "Drag & Drop or Upload Dataset"}
+                </h3>
+                <p className="text-xs text-muted-foreground max-w-lg mx-auto leading-relaxed">
+                  Native parsing engine for structured data. Automatic delimiter sniffing, multi-sheet Excel extraction, JSON records unrolling, PDF tabular line detection, and SQL DDL/INSERT statements. Files up to 25MB are parsed and cached in session store.
+                </p>
+              </div>
 
-            {/* Supported Formats Pills */}
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-              {[
-                { label: "CSV / TSV", ext: ".csv, .tsv, .txt", color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20" },
-                { label: "Excel Workbooks", ext: ".xlsx, .xls", color: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20" },
-                { label: "JSON / JSONL", ext: ".json, .jsonl", color: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20" },
-                { label: "PDF Tables", ext: ".pdf", color: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20" },
-                { label: "SQL Dumps", ext: ".sql", color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20" },
-              ].map((fmt) => (
-                <span
-                  key={fmt.label}
-                  className={`text-[11px] font-mono px-2.5 py-1 rounded-full border ${fmt.color} font-medium`}
-                >
-                  {fmt.label} <span className="opacity-70">({fmt.ext})</span>
-                </span>
-              ))}
-            </div>
+              {/* Supported Formats Pills */}
+              <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+                {[
+                  { label: "CSV / TSV", ext: ".csv, .tsv, .txt", color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20" },
+                  { label: "Excel Workbooks", ext: ".xlsx, .xls", color: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20" },
+                  { label: "JSON / JSONL", ext: ".json, .jsonl", color: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20" },
+                  { label: "PDF Tables", ext: ".pdf", color: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20" },
+                  { label: "SQL Dumps", ext: ".sql", color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20" },
+                ].map((fmt) => (
+                  <span
+                    key={fmt.label}
+                    className={`text-[11px] font-mono px-2.5 py-1 rounded-full border ${fmt.color} font-medium`}
+                  >
+                    {fmt.label} <span className="opacity-70">({fmt.ext})</span>
+                  </span>
+                ))}
+              </div>
 
-            <div className="pt-3">
-              <label className="inline-flex items-center space-x-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer shadow-md shadow-emerald-600/30 transition-all active:scale-95">
-                <Upload className="w-4 h-4" />
-                <span>Choose File to Upload</span>
-                <input
-                  type="file"
-                  accept=".csv,.tsv,.txt,.xlsx,.xls,.json,.jsonl,.pdf,.sql"
-                  onChange={handleUploadFile}
-                  className="hidden"
-                />
-              </label>
+              {/* Upload Action / Active File In-Progress */}
+              {loading && selectedFile ? (
+                <div className="max-w-md mx-auto p-4 rounded-xl border border-emerald-500/40 bg-emerald-500/5 space-y-3">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="font-semibold text-foreground truncate max-w-[200px]">{selectedFile.name}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-emerald-600 h-2 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span className="animate-pulse">{uploadStage}</span>
+                    <button
+                      onClick={handleCancelUpload}
+                      className="text-rose-500 hover:text-rose-600 font-medium inline-flex items-center space-x-1"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Cancel</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <label className="inline-flex items-center space-x-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer shadow-md shadow-emerald-600/30 transition-all active:scale-95">
+                    <Upload className="w-4 h-4" />
+                    <span>Choose File to Upload</span>
+                    <input
+                      type="file"
+                      accept=".csv,.tsv,.txt,.xlsx,.xls,.json,.jsonl,.pdf,.sql"
+                      onChange={handleUploadFile}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-xs text-muted-foreground font-mono">or drag &amp; drop file here (Max 25 MB)</span>
+                </div>
+              )}
             </div>
           </div>
         )}

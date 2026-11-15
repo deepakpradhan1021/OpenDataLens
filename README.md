@@ -111,6 +111,15 @@ OpenDataLens guarantees strict prevention of data leakage:
 - Workspaces are ephemeral demo sessions indexed by cryptographically random UUIDv4 identifiers.
 - State is held in a thread-safe in-memory session store with active TTL eviction and clean cancellation of running jobs upon workspace reset.
 
+### 5. Multi-Format Ingestion Specifications & Security Safeguards
+OpenDataLens implements a multi-format data lake ingestion engine with zero-execution security:
+- **Supported Formats:** Delimited text (`.csv`, `.tsv`, `.txt`), Excel workbooks (`.xlsx`, `.xls`), JSON structures (`.json`, `.jsonl`), PDF tables (`.pdf`), and static SQL dumps (`.sql`).
+- **Memory & Payload Guardrails:** Hard 25 MB payload limit enforced on both client and server; 0-byte and corrupted payloads are safely rejected before memory allocation.
+- **Zero Live Execution for SQL:** SQL files are parsed statically using offline AST extractors for `CREATE TABLE` and `INSERT INTO` tuples. OpenDataLens never connects to live databases and explicitly rejects dangerous statements (`DROP`, `ALTER USER`, `TRUNCATE`, `EXEC`, `SHUTDOWN`, `GRANT`).
+- **Safe Excel Parsing:** Excel workbooks are loaded with `data_only=True`, preventing VBA macro or external script execution. Multi-sheet workbooks automatically locate the first populated data sheet.
+- **Structured JSON Ingestion:** Ingests standard record arrays `[{...}]`, Pandas split orientation `{"columns": [...], "data": [...]}`, tabular key wrappers (`"data"`, `"records"`), column-oriented dictionaries, and newline-delimited JSON (`.jsonl`).
+- **PDF Tabular Extraction & Limitations:** Automatically identifies columnar separators (tabs, pipes, commas, aligned whitespace). Scanned or image-only documents without text layers and narrative prose documents are validated and rejected with actionable user guidance.
+
 ---
 
 ## Authoritative Curated Benchmark Catalog
