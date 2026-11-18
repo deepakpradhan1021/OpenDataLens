@@ -52,11 +52,11 @@ test.describe("OpenDataLens Live Production Audit & Full User Journey", () => {
     await expect(page.getByRole("heading", { name: "Dataset Discovery" })).toBeVisible({ timeout: 25000 });
 
     // Wait for curated catalog to load from Render backend
-    const irisCard = page.getByText("Iris Flower Dataset").first();
+    const irisCard = page.locator("div.rounded-2xl").filter({ hasText: "Iris Flower Dataset" });
     await expect(irisCard).toBeVisible({ timeout: 45000 });
 
     // Mount Iris dataset
-    const mountBtn = page.getByRole("button", { name: /^Mount$|^Reload$/i }).first();
+    const mountBtn = irisCard.getByRole("button", { name: /^Mount$|^Reload$/i }).first();
     await mountBtn.click();
 
     // Confirm active dataset preview table
@@ -131,7 +131,7 @@ test.describe("OpenDataLens Live Production Audit & Full User Journey", () => {
 
     // --- STEP H: REPORTS & EXPORT BAY ---
     await page.goto("/reports");
-    await expect(page.getByRole("heading", { name: "Evaluation Reports & Model Export" })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("heading", { name: /Analytics Reports|Evaluation Reports/i })).toBeVisible({ timeout: 20000 });
     await expect(page.getByText("Interactive HTML Dossier")).toBeVisible();
     await expect(page.getByText("Machine-Readable JSON")).toBeVisible();
     await expect(page.getByText("GitHub README Summary")).toBeVisible();
@@ -155,10 +155,10 @@ test.describe("OpenDataLens Live Production Audit & Full User Journey", () => {
     await page.goto("/explorer");
     await expect(page.getByRole("heading", { name: "Dataset Discovery" })).toBeVisible({ timeout: 20000 });
 
-    const diaCard = page.getByText("Diabetes Progression").first();
+    const diaCard = page.locator("div.rounded-2xl").filter({ hasText: "Diabetes Progression" });
     await expect(diaCard).toBeVisible({ timeout: 45000 });
 
-    const mountDiaBtn = page.getByRole("button", { name: /^Mount$|^Reload$/i }).first();
+    const mountDiaBtn = diaCard.getByRole("button", { name: /^Mount$|^Reload$/i }).first();
     await mountDiaBtn.click();
 
     await expect(page.getByText(/Active Dataset:\s*Diabetes Progression/i)).toBeVisible({ timeout: 25000 });
