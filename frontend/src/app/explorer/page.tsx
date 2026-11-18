@@ -308,6 +308,7 @@ export default function ExplorerPage() {
           </button>
           <button
             onClick={() => setActiveTab("csv")}
+            data-testid="tab-upload"
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
               activeTab === "csv"
                 ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/30"

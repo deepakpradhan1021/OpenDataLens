@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Layers,
   Loader2,
+  PieChart,
 } from "lucide-react";
 import { Ring } from "@/components/loading-ui/ring";
 import { api, subscribeColdStart } from "@/lib/api";
@@ -277,70 +278,101 @@ export default function DashboardPage() {
             )}
 
             {/* Quick Action Station */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {/* Module 1 */}
-              <div className="rounded-2xl border border-border bg-card p-6 space-y-4 hover:border-emerald-500/40 transition-colors shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
-                    Module 01
-                  </span>
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-base text-foreground">Data Quality Profiler</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Audit null percentages, duplicate records, distribution skewness, and high correlation matrices.
-                  </p>
+              <div className="rounded-2xl border border-border bg-card p-5 space-y-4 hover:border-emerald-500/40 transition-colors shadow-sm flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
+                      Module 01
+                    </span>
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-sm text-foreground">Quality Profiler</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Audit null percentages, duplicate records, distribution skewness, and high correlation matrices.
+                    </p>
+                  </div>
                 </div>
                 <Link
                   href="/quality"
-                  className="w-full inline-flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground border border-border text-xs font-semibold transition-colors"
+                  className="w-full inline-flex items-center justify-center space-x-2 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground border border-border text-xs font-semibold transition-colors"
                 >
-                  <span>Launch Quality Audit</span>
+                  <span>Launch Audit</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
 
               {/* Module 2 */}
-              <div className="rounded-2xl border border-border bg-card p-6 space-y-4 hover:border-emerald-500/40 transition-colors shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
-                    Module 02
-                  </span>
-                  <Cpu className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-base text-foreground">ML Training Studio</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Auto-detect target columns, select input features, configure preprocessing, and run parallel training.
-                  </p>
+              <div className="rounded-2xl border border-border bg-card p-5 space-y-4 hover:border-emerald-500/40 transition-colors shadow-sm flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
+                      Module 02
+                    </span>
+                    <PieChart className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-sm text-foreground">Visual Analytics</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Interactive binned histograms, timelines, categorical rankings, and multi-dimensional charts.
+                    </p>
+                  </div>
                 </div>
                 <Link
-                  href="/studio"
-                  className="w-full inline-flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors"
+                  href="/visualize"
+                  className="w-full inline-flex items-center justify-center space-x-2 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground border border-border text-xs font-semibold transition-colors"
                 >
-                  <span>Train Models Now</span>
+                  <span>Launch Studio</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
 
               {/* Module 3 */}
-              <div className="rounded-2xl border border-border bg-card p-6 space-y-4 hover:border-emerald-500/40 transition-colors shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
-                    Module 03
-                  </span>
-                  <FileText className="w-4 h-4 text-violet-500" />
+              <div className="rounded-2xl border border-border bg-card p-5 space-y-4 hover:border-emerald-500/40 transition-colors shadow-sm flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
+                      Module 03
+                    </span>
+                    <Cpu className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-sm text-foreground">ML Training Studio</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Auto-detect target columns, select input features, configure preprocessing, and run parallel training.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-base text-foreground">Evaluation Reports</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Download standalone HTML dossiers, JSON telemetry audits, Markdown summaries, and `.joblib` model binaries.
-                  </p>
+                <Link
+                  href="/studio"
+                  className="w-full inline-flex items-center justify-center space-x-2 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors"
+                >
+                  <span>Train Models</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {/* Module 4 */}
+              <div className="rounded-2xl border border-border bg-card p-5 space-y-4 hover:border-emerald-500/40 transition-colors shadow-sm flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
+                      Module 04
+                    </span>
+                    <FileText className="w-4 h-4 text-violet-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-sm text-foreground">Evaluation Reports</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Download executive PDF dossiers, Excel workbooks, HTML telemetry audits, and serialized models.
+                    </p>
+                  </div>
                 </div>
                 <Link
                   href="/reports"
-                  className="w-full inline-flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground border border-border text-xs font-semibold transition-colors"
+                  className="w-full inline-flex items-center justify-center space-x-2 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground border border-border text-xs font-semibold transition-colors"
                 >
                   <span>Download Reports</span>
                   <ArrowRight className="w-3.5 h-3.5" />

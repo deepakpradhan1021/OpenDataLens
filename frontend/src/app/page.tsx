@@ -56,6 +56,15 @@ const PRESET_DATASETS = [
     desc: "Census block housing values with geospatial coordinates and median income.",
   },
   {
+    id: "breast_cancer",
+    name: "Breast Cancer Wisconsin",
+    task: "Classification",
+    rows: 569,
+    cols: 31,
+    tag: "Oncology",
+    desc: "Diagnostic benchmark with 30 features computed from digitized images of cell nuclei.",
+  },
+  {
     id: "diabetes",
     name: "Diabetes Progression",
     task: "Regression",

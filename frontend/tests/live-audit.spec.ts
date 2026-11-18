@@ -193,14 +193,15 @@ test.describe("OpenDataLens Live Production Audit & Full User Journey", () => {
     await page.goto("/explorer");
     await expect(page.getByRole("heading", { name: "Dataset Discovery" })).toBeVisible({ timeout: 20000 });
 
-    // Switch to Upload Custom CSV tab
-    await page.getByRole("button", { name: "Upload Custom CSV" }).click();
-    await expect(page.getByText("Upload Custom CSV or Delimited File")).toBeVisible();
+    // Switch to Upload tab
+    const uploadTabBtn = page.getByRole("button", { name: /Upload (Custom CSV|File)/i });
+    await uploadTabBtn.click();
+    await expect(page.getByText(/Upload Custom CSV|Drag & Drop or Upload Dataset/i)).toBeVisible();
 
     // Upload custom CSV file via fileChooser
     const csvContent = "feature_a,feature_b,feature_c,target\n1.2,3.4,5.6,0\n2.3,4.5,6.7,1\n3.4,5.6,7.8,0\n4.5,6.7,8.9,1\n5.6,7.8,9.0,0\n6.7,8.9,1.2,1\n7.8,9.0,2.3,0\n8.9,1.2,3.4,1\n9.0,2.3,4.5,0\n1.1,2.2,3.3,1\n";
     const fileChooserPromise = page.waitForEvent("filechooser");
-    await page.getByText("Select CSV from Computer").click();
+    await page.getByText(/Choose File to Upload|Select CSV from Computer/i).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles({
       name: "custom_portfolio_data.csv",
