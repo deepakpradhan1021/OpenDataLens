@@ -122,6 +122,7 @@ class WorkspaceSyncService {
     const snapshotToSave = { ...this.pendingSnapshot };
     this.pendingSnapshot = null;
     this.hasPendingSave = false;
+    let fullSnapshot: CompleteWorkspaceSnapshot | null = null;
 
     try {
       const workspaceId = getWorkspaceId();
@@ -148,7 +149,7 @@ class WorkspaceSyncService {
         approx_size_bytes: Math.round(memoryMB * 1024 * 1024),
       };
 
-      const fullSnapshot: CompleteWorkspaceSnapshot = {
+      fullSnapshot = {
         metadata: updatedMeta,
         dataset: snapshotToSave.dataset,
         transformations: snapshotToSave.transformations,
@@ -169,6 +170,26 @@ class WorkspaceSyncService {
       return true;
     } catch (err: any) {
       console.error("[WorkspaceSync] Failed to persist workspace to IndexedDB:", err);
+      // Safe fallback on quota error: retry saving without heavy raw_csv
+      if ((err.name === "QuotaExceededError" || err.message?.includes("quota")) && fullSnapshot && fullSnapshot.dataset?.raw_csv) {
+        try {
+          console.warn("[WorkspaceSync] Quota limit encountered. Retrying save with raw_csv omitted...");
+          const degradedSnapshot: CompleteWorkspaceSnapshot = {
+            ...fullSnapshot,
+            dataset: {
+              ...fullSnapshot.dataset,
+              raw_csv: undefined,
+            },
+          };
+          await localDB.saveFullWorkspace(degradedSnapshot);
+          this.lastSavedAt = new Date();
+          this.setStatus("error", "Storage quota limit reached. Saved preview schema; raw CSV omitted.");
+          return true;
+        } catch (retryErr) {
+          console.error("[WorkspaceSync] Degraded save also failed:", retryErr);
+        }
+      }
+
       if (err.name === "QuotaExceededError") {
         this.setStatus("error", "Storage quota exceeded. Free up browser space.");
       } else {

@@ -51,6 +51,7 @@ import { api, categorizeApiError, getWorkspaceId } from "@/lib/api";
 import { DatasetPreviewResponse, ChartDataResponse, ChartDataInsights, ChartDataItem } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 import { workspaceSync } from "@/lib/workspace-sync";
+import { loadActiveWorkspace } from "@/lib/workspace-restore";
 
 const PALETTE = [
   "#10B981", // Emerald
@@ -72,6 +73,7 @@ export default function VisualizePage() {
   const [dataset, setDataset] = useState<DatasetPreviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
 
   // Chart Architecture State
   const [chartType, setChartType] = useState<ChartType>("bar");
@@ -161,6 +163,40 @@ export default function VisualizePage() {
           setDataset(null);
         }
       } catch (err: any) {
+        // Backend unavailable/sleeping: restore dataset and chart preferences from IndexedDB
+        try {
+          const restored = await loadActiveWorkspace();
+          if (restored.dataset && restored.dataset.records && restored.dataset.records.length > 0) {
+            setDataset({
+              session_id: restored.dataset.workspace_id,
+              metadata: {
+                id: restored.dataset.workspace_id,
+                name: "Restored Dataset",
+                ...(restored.dataset.metadata || {}),
+              },
+              columns: restored.dataset.columns,
+              records: restored.dataset.records,
+              total_rows: restored.dataset.total_rows,
+              total_cols: restored.dataset.total_cols,
+              memory_mb: restored.dataset.memory_mb,
+            });
+            setIsOfflineMode(true);
+            setError(null);
+
+            if (restored.visualizations) {
+              if (restored.visualizations.active_chart_type) setChartType(restored.visualizations.active_chart_type as ChartType);
+              if (restored.visualizations.x_axis_col) setXAxisCol(restored.visualizations.x_axis_col);
+              if (restored.visualizations.y_axis_col) setYAxisCol(restored.visualizations.y_axis_col);
+              if (restored.visualizations.aggregation) setAggregation(restored.visualizations.aggregation as AggregationType);
+              if (restored.visualizations.top_n) setTopN(restored.visualizations.top_n);
+              if (restored.visualizations.bins) setBins(restored.visualizations.bins);
+            }
+            return;
+          }
+        } catch (restoreErr) {
+          console.warn("[Visualize] IndexedDB restoration failed:", restoreErr);
+        }
+
         const cat = categorizeApiError(err);
         if (cat.type === "cold_start") {
           setError("Waking up the backend. This may take up to 50 seconds on Render's free tier.");
@@ -808,6 +844,21 @@ export default function VisualizePage() {
             <button onClick={() => setExportNotice(null)} className="text-muted-foreground hover:text-foreground">
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
+
+        {/* Offline Notification Banner */}
+        {isOfflineMode && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                <strong>Offline / Local Mode:</strong> Dataset restored from browser IndexedDB. Charts rendered via local client engine; server-computed aggregations will resume when backend reconnects.
+              </span>
+            </div>
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono text-[10px] uppercase font-bold shrink-0 ml-2">
+              LOCAL CACHE
+            </span>
           </div>
         )}
 

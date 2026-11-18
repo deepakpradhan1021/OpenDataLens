@@ -59,11 +59,13 @@ import {
 } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 import { workspaceSync } from "@/lib/workspace-sync";
+import { loadActiveWorkspace } from "@/lib/workspace-restore";
 
 export default function QualityPage() {
   const [quality, setQuality] = useState<QualityAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [qualityError, setQualityError] = useState<string | null>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
   const [selectedCol, setSelectedCol] = useState<string>("");
   const [distData, setDistData] = useState<ColumnDistributionResponse | null>(null);
   const [distLoading, setDistLoading] = useState(false);
@@ -132,6 +134,17 @@ export default function QualityPage() {
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       setHistoryItems(res.history);
+
+      const cpMap: Record<string, any> = {};
+      checkpoints.forEach((cp) => {
+        cpMap[cp.name] = {
+          timestamp: cp.timestamp,
+          rows: cp.rows,
+          cols: cp.cols,
+          last_action: cp.last_action || null,
+        };
+      });
+
       workspaceSync.queueAutoSave({
         transformations: {
           workspace_id: getWorkspaceId(),
@@ -142,7 +155,7 @@ export default function QualityPage() {
             rows: h.rows ?? 0,
             cols: h.cols ?? 0,
           })),
-          named_checkpoints: {},
+          named_checkpoints: cpMap,
           last_action: res.history?.[res.history.length - 1]?.action || null,
           updated_at: new Date().toISOString(),
         },
@@ -150,16 +163,42 @@ export default function QualityPage() {
     } catch {
       // Non-blocking
     }
-  }, []);
+  }, [checkpoints]);
 
   const refreshCheckpoints = useCallback(async () => {
     try {
       const res = await api.getNamedCheckpoints();
       setCheckpoints(res.checkpoints);
+
+      const cpMap: Record<string, any> = {};
+      (res.checkpoints || []).forEach((cp) => {
+        cpMap[cp.name] = {
+          timestamp: cp.timestamp,
+          rows: cp.rows,
+          cols: cp.cols,
+          last_action: cp.last_action || null,
+        };
+      });
+
+      workspaceSync.queueAutoSave({
+        transformations: {
+          workspace_id: getWorkspaceId(),
+          history: (historyItems || []).map((h: any, idx: number) => ({
+            step: h.step ?? idx,
+            action: h.action || "Transformation",
+            timestamp: typeof h.timestamp === "number" ? h.timestamp : Date.now(),
+            rows: h.rows ?? 0,
+            cols: h.cols ?? 0,
+          })),
+          named_checkpoints: cpMap,
+          last_action: historyItems?.[historyItems.length - 1]?.action || null,
+          updated_at: new Date().toISOString(),
+        },
+      });
     } catch {
       // Non-blocking
     }
-  }, []);
+  }, [historyItems]);
 
   const fetchQuality = useCallback(async () => {
     setLoading(true);
@@ -167,6 +206,7 @@ export default function QualityPage() {
     try {
       const q = await api.getQualityAnalysis();
       setQuality(q);
+      setIsOfflineMode(false);
       const cols = Object.keys(q.missing_summary);
       if (cols.length > 0) {
         if (!selectedCol || !cols.includes(selectedCol)) {
@@ -184,6 +224,37 @@ export default function QualityPage() {
       refreshCheckpoints();
     } catch (e: any) {
       console.error(e);
+      // Attempt to restore cached quality & transformation state from IndexedDB
+      try {
+        const restored = await loadActiveWorkspace();
+        if (restored.hasCachedData) {
+          if (restored.transformations) {
+            if (restored.transformations.history) {
+              setHistoryItems(restored.transformations.history as any);
+            }
+            if (restored.transformations.named_checkpoints) {
+              const cps: NamedCheckpointItem[] = Object.entries(restored.transformations.named_checkpoints).map(([name, data]: [string, any]) => ({
+                name,
+                timestamp: data.timestamp ?? Date.now(),
+                rows: data.rows ?? 0,
+                cols: data.cols ?? 0,
+                last_action: data.last_action || null,
+              }));
+              setCheckpoints(cps);
+            }
+          }
+          if (restored.analysisHistory?.quality_overview) {
+            setQuality(restored.analysisHistory.quality_overview as any);
+            setIsOfflineMode(true);
+            return;
+          } else if (restored.dataset) {
+            setIsOfflineMode(true);
+          }
+        }
+      } catch (restoreErr) {
+        console.warn("Quality restore from IndexedDB failed:", restoreErr);
+      }
+
       const cat = categorizeApiError(e);
       if (cat.type === "cold_start") {
         setQualityError("Waking up the backend. This may take up to 50 seconds on Render's free tier. Click retry once awake.");
@@ -716,6 +787,21 @@ export default function QualityPage() {
                 </div>
               )
             )}
+          </div>
+        )}
+
+        {/* Offline / Cached State Notification Banner */}
+        {isOfflineMode && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                <strong>Offline / Local Mode:</strong> Quality metrics restored from browser storage. Data cleaning mutations and AI Copilot require an active backend connection.
+              </span>
+            </div>
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono text-[10px] uppercase font-bold shrink-0 ml-2">
+              LOCAL CACHE
+            </span>
           </div>
         )}
 

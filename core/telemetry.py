@@ -238,6 +238,9 @@ class TelemetryCollector:
             else:
                 self._event_counters[event_name] = 1
 
+    # Convenience alias for increment_event
+    record_event = increment_event
+
     def set_active_jobs(self, count: int) -> None:
         """
         Updates count of active ML training jobs or heavy compute tasks.
@@ -354,9 +357,16 @@ class TelemetryCollector:
     # Metrics Reset
     # -------------------------------------------------------------------------
 
+    def reset_admin_lockouts(self) -> None:
+        """
+        Resets all tracked admin authentication failure attempts and lockouts.
+        """
+        with self._lock:
+            self._admin_auth_attempts.clear()
+
     def reset_metrics(self) -> None:
         """
-        Resets all latency buffers, throughput counters, and route tables.
+        Resets all latency buffers, throughput counters, route tables, and rate-limit lockouts.
         """
         with self._lock:
             self._latency_buffer.clear()
@@ -364,6 +374,7 @@ class TelemetryCollector:
             self._route_metrics.clear()
             for k in self._event_counters:
                 self._event_counters[k] = 0
+            self._admin_auth_attempts.clear()
             logger.info("Telemetry metrics reset by admin.")
 
     # -------------------------------------------------------------------------

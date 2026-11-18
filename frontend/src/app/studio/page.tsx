@@ -16,12 +16,14 @@ import {
   X,
   Terminal,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { Ring } from "@/components/loading-ui/ring";
 import { api, categorizeApiError, getWorkspaceId } from "@/lib/api";
 import { TargetCandidatesResponse, JobStatusResponse } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 import { workspaceSync } from "@/lib/workspace-sync";
+import { loadActiveWorkspace } from "@/lib/workspace-restore";
 
 const CLASSIFICATION_MODELS = [
   { id: "logistic_regression", name: "Logistic Regression", desc: "Linear baseline with L2 penalty", default: true },
@@ -61,12 +63,14 @@ export default function StudioPage() {
   const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
   const [isTraining, setIsTraining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
 
   useEffect(() => {
     async function init() {
       try {
         const c = await api.getTargetCandidates();
         setCandidates(c);
+        setIsOfflineMode(false);
 
         const initialTask = c.suggested_task === "regression" ? "regression" : "classification";
         setProblemType(initialTask);
@@ -86,6 +90,36 @@ export default function StudioPage() {
         setSelectedModels(modelList.filter((m) => m.default).map((m) => m.id));
       } catch (e: any) {
         console.error(e);
+        // Fallback: restore schema and candidate features from IndexedDB
+        try {
+          const restored = await loadActiveWorkspace();
+          if (restored.dataset && restored.dataset.columns && restored.dataset.columns.length > 0) {
+            const cols = restored.dataset.columns.map((c) => c.name);
+            const numCols = restored.dataset.columns
+              .filter((c) => ["int", "float", "number", "double"].some((t) => c.dtype.toLowerCase().includes(t)))
+              .map((c) => c.name);
+            const catCols = restored.dataset.columns
+              .filter((c) => !["int", "float", "number", "double"].some((t) => c.dtype.toLowerCase().includes(t)))
+              .map((c) => c.name);
+
+            const initialTask = numCols.length > 0 ? "regression" : "classification";
+            setCandidates({
+              classification: catCols.length > 0 ? catCols : cols,
+              regression: numCols.length > 0 ? numCols : cols,
+              suggested_task: initialTask,
+              columns: cols,
+            });
+            setProblemType(initialTask);
+            const defaultTarget = (initialTask === "regression" ? numCols[0] : catCols[0]) || cols[cols.length - 1];
+            setTargetCol(defaultTarget);
+            setFeatureCols(cols.filter((c) => c !== defaultTarget));
+            const modelList = initialTask === "classification" ? CLASSIFICATION_MODELS : REGRESSION_MODELS;
+            setSelectedModels(modelList.filter((m) => m.default).map((m) => m.id));
+            setIsOfflineMode(true);
+          }
+        } catch (restoreErr) {
+          console.warn("[Studio] IndexedDB restoration failed:", restoreErr);
+        }
       } finally {
         setLoading(false);
       }
@@ -127,6 +161,10 @@ export default function StudioPage() {
   };
 
   const handleStartTraining = async () => {
+    if (isOfflineMode) {
+      setError("Cannot train models while operating in offline cache mode. A live connection to the backend is required.");
+      return;
+    }
     if (!targetCol) {
       setError("Please designate a target column.");
       return;
@@ -281,6 +319,20 @@ export default function StudioPage() {
         </div>
 
         {/* Notifications */}
+        {isOfflineMode && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                <strong>Offline / Local Mode:</strong> Dataset schema restored from browser IndexedDB. New model training runs require an active backend connection.
+              </span>
+            </div>
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono text-[10px] uppercase font-bold shrink-0 ml-2">
+              LOCAL CACHE
+            </span>
+          </div>
+        )}
+
         {error && (
           <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-200 text-xs flex items-center space-x-2.5 animate-in fade-in">
             <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />

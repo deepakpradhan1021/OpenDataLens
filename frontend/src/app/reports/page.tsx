@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { Ring } from "@/components/loading-ui/ring";
 import { api } from "@/lib/api";
+import { loadActiveWorkspace } from "@/lib/workspace-restore";
 import {
   ModelComparisonResponse,
   DatasetPreviewResponse,
@@ -90,7 +91,28 @@ export default function ReportsPage() {
           setProjectName(ds.metadata.name ? `${ds.metadata.name} Analysis` : "Dataset Analysis");
           setShareTitle(ds.metadata.name ? `${ds.metadata.name} Executive Report` : "Executive Report");
         } catch {
-          // No active dataset
+          try {
+            const restored = await loadActiveWorkspace();
+            if (restored.dataset) {
+              setActiveDataset({
+                session_id: restored.dataset.workspace_id,
+                metadata: {
+                  id: restored.dataset.workspace_id,
+                  name: "Restored Dataset",
+                  ...(restored.dataset.metadata || {}),
+                },
+                columns: restored.dataset.columns,
+                records: restored.dataset.records,
+                total_rows: restored.dataset.total_rows,
+                total_cols: restored.dataset.total_cols,
+                memory_mb: restored.dataset.memory_mb,
+              });
+              setProjectName(restored.dataset.metadata?.name ? `${restored.dataset.metadata.name} Analysis` : "Dataset Analysis");
+              setShareTitle(restored.dataset.metadata?.name ? `${restored.dataset.metadata.name} Executive Report` : "Executive Report");
+            }
+          } catch {
+            // No local cached workspace
+          }
         }
 
         // Fetch model comparison if available

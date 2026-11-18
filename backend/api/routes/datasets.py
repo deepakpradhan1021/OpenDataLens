@@ -3,11 +3,12 @@ Dataset Ingestion and Exploration Routes for OpenDataLens.
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query, status
 import pandas as pd
 import numpy as np
 
 from backend.api.session_store import store
+from core.telemetry import telemetry_collector
 from backend.api.models import (
     CuratedDatasetItem,
     LoadCuratedRequest,
@@ -76,6 +77,13 @@ def list_curated():
 
 @router.post("/load-curated", response_model=DatasetPreviewResponse)
 async def load_curated(req: LoadCuratedRequest):
+    if telemetry_collector.is_memory_critical():
+        telemetry_collector.record_event("dataset_processing_failures")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Server memory is critically constrained (>450 MB). Curated dataset loading temporarily throttled to prevent crash.",
+            headers={"Retry-After": "30"},
+        )
     try:
         df, meta = load_curated_dataset(req.dataset_id)
         store.set_dataset(req.session_id, df, meta)
@@ -97,6 +105,13 @@ def search_hf(query: str = "tabular", limit: int = 9):
 
 @router.post("/load-hf", response_model=DatasetPreviewResponse)
 def load_hf(req: LoadHFRequest):
+    if telemetry_collector.is_memory_critical():
+        telemetry_collector.record_event("dataset_processing_failures")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Server memory is critically constrained (>450 MB). Hugging Face dataset loading temporarily throttled to prevent crash.",
+            headers={"Retry-After": "30"},
+        )
     try:
         df, meta = load_hf_dataset_via_api(
             dataset_name=req.dataset_name,
@@ -148,6 +163,14 @@ async def upload_file(
         raise HTTPException(
             status_code=413,
             detail="Uploaded file exceeds the maximum 25 MB size limit."
+        )
+
+    if telemetry_collector.is_memory_critical():
+        telemetry_collector.record_event("upload_failures")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Server memory is critically constrained (>450 MB). File upload temporarily throttled to prevent crash.",
+            headers={"Retry-After": "30"},
         )
 
     try:

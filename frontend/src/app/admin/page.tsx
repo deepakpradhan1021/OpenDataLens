@@ -92,6 +92,25 @@ export default function AdminTelemetryPage() {
 
   const timerRef = useRef<any>(null);
 
+  const fetchTelemetryData = useCallback(async (key?: string) => {
+    const activeKey = key || adminKey;
+    if (!activeKey) return;
+    setRefreshLoading(true);
+    try {
+      const data = await api.getAdminTelemetry(activeKey);
+      setTelemetry(data);
+      setLastRefreshedAt(new Date());
+      setAuthError(null);
+    } catch (err: any) {
+      if (err.response?.status === 401 || err.response?.status === 429) {
+        setIsAuthenticated(false);
+        setAuthError(err.response?.data?.detail || "Authentication expired.");
+      }
+    } finally {
+      setRefreshLoading(false);
+    }
+  }, [adminKey]);
+
   const verifyKey = useCallback(async (key: string) => {
     if (!key.trim()) return;
     setAuthLoading(true);
@@ -146,25 +165,6 @@ export default function AdminTelemetryPage() {
       sessionStorage.removeItem("odl_admin_key");
     }
   };
-
-  const fetchTelemetryData = useCallback(async (key?: string) => {
-    const activeKey = key || adminKey;
-    if (!activeKey) return;
-    setRefreshLoading(true);
-    try {
-      const data = await api.getAdminTelemetry(activeKey);
-      setTelemetry(data);
-      setLastRefreshedAt(new Date());
-      setAuthError(null);
-    } catch (err: any) {
-      if (err.response?.status === 401 || err.response?.status === 429) {
-        setIsAuthenticated(false);
-        setAuthError(err.response?.data?.detail || "Authentication expired.");
-      }
-    } finally {
-      setRefreshLoading(false);
-    }
-  }, [adminKey]);
 
   // Auto-refresh polling
   useEffect(() => {

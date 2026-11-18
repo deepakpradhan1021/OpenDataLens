@@ -10,13 +10,14 @@ import secrets
 import logging
 import threading
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request, Query, status
 from fastapi.responses import JSONResponse
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 from backend.api.session_store import store
+from core.telemetry import telemetry_collector
 from backend.api.models import (
     TargetCandidatesResponse,
     TrainModelsRequest,
@@ -60,6 +61,7 @@ def get_target_candidates(session_id: str = "default"):
 def _async_train_worker(job_id: str, req: TrainModelsRequest):
     """Background worker function executing the training and evaluation loop."""
     start_total_time = time.time()
+    telemetry_collector.change_active_jobs(1)
     try:
         # Check if job was cancelled or workspace was cleared before starting
         job = store.get_job(job_id)
@@ -207,10 +209,21 @@ def _async_train_worker(job_id: str, req: TrainModelsRequest):
         logger.exception(f"Training job {job_id} encountered an error: {exc}")
         safe_msg = "Model training failed due to incompatible feature types, excessive missing values, or insufficient samples."
         store.update_job(job_id, status="failed", error=safe_msg)
+        telemetry_collector.record_event("ml_training_failures")
+    finally:
+        telemetry_collector.change_active_jobs(-1)
 
 
 @router.post("/train", response_model=TrainJobStartResponse)
 def start_model_training(req: TrainModelsRequest):
+    if telemetry_collector.is_memory_critical():
+        telemetry_collector.record_event("ml_training_failures")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Server memory is critically constrained (>450 MB). Model training temporarily throttled to prevent crash.",
+            headers={"Retry-After": "30"},
+        )
+
     df = store.get_dataset(req.session_id)
     if df is None:
         raise HTTPException(status_code=404, detail="No active dataset in session. Load a dataset first.")

@@ -712,6 +712,15 @@ export const api = {
     return `${API_BASE_URL}/reports/csv?session_id=${sid}`;
   },
 
+  downloadDatasetCsvText: async (sessionId?: string): Promise<string> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.get<string>("/reports/dataset-csv", {
+      params: { session_id: sid },
+      responseType: "text",
+    });
+    return data;
+  },
+
   getCsvReportUrl: (sessionId?: string) => {
     const sid = sessionId || getWorkspaceId();
     return `${API_BASE_URL}/reports/csv?session_id=${sid}`;

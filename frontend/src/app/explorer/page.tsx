@@ -23,6 +23,7 @@ import {
   FileText,
   FileCode,
   XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Ring } from "@/components/loading-ui/ring";
 import { api, categorizeApiError } from "@/lib/api";
@@ -30,6 +31,7 @@ import { CuratedDatasetItem, HFDatasetCard, DatasetPreviewResponse } from "@/lib
 import { RetroDock } from "@/components/retro-dock";
 import { FilterState } from "@/components/retro-filter-drawer";
 import { workspaceSync } from "@/lib/workspace-sync";
+import { loadActiveWorkspace } from "@/lib/workspace-restore";
 
 export default function ExplorerPage() {
   const [activeTab, setActiveTab] = useState<"curated" | "hf" | "csv">("curated");
@@ -37,6 +39,7 @@ export default function ExplorerPage() {
   const [hfQuery, setHfQuery] = useState("tabular");
   const [hfResults, setHfResults] = useState<HFDatasetCard[]>([]);
   const [activeDataset, setActiveDataset] = useState<DatasetPreviewResponse | null>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
 
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -64,23 +67,45 @@ export default function ExplorerPage() {
 
   useEffect(() => {
     api.getCuratedDatasets().then(setCuratedList).catch(console.error);
-    api.getActiveDataset().then((data) => {
-      setActiveDataset(data);
-      if (data) {
-        workspaceSync.queueAutoSave({
-          dataset: {
-            workspace_id: data.session_id,
-            metadata: data.metadata,
-            columns: data.columns,
-            records: data.records,
-            total_rows: data.total_rows,
-            total_cols: data.total_cols,
-            memory_mb: data.memory_mb,
-            updated_at: new Date().toISOString(),
-          },
-        });
-      }
-    }).catch(() => null);
+    api.getActiveDataset()
+      .then((data) => {
+        setActiveDataset(data);
+        setIsOfflineMode(false);
+        if (data) {
+          workspaceSync.queueAutoSave({
+            dataset: {
+              workspace_id: data.session_id,
+              metadata: data.metadata,
+              columns: data.columns,
+              records: data.records,
+              total_rows: data.total_rows,
+              total_cols: data.total_cols,
+              memory_mb: data.memory_mb,
+              updated_at: new Date().toISOString(),
+            },
+          });
+        }
+      })
+      .catch(async () => {
+        // Backend sleeping or offline: safely restore active workspace from browser IndexedDB
+        const restored = await loadActiveWorkspace();
+        if (restored.dataset) {
+          setActiveDataset({
+            session_id: restored.dataset.workspace_id,
+            metadata: {
+              id: restored.dataset.workspace_id,
+              name: "Restored Dataset",
+              ...(restored.dataset.metadata || {}),
+            },
+            columns: restored.dataset.columns,
+            records: restored.dataset.records,
+            total_rows: restored.dataset.total_rows,
+            total_cols: restored.dataset.total_cols,
+            memory_mb: restored.dataset.memory_mb,
+          });
+          setIsOfflineMode(true);
+        }
+      });
   }, []);
 
   const handleLoadCurated = async (id: string) => {
@@ -90,6 +115,7 @@ export default function ExplorerPage() {
     try {
       const data = await api.loadCuratedDataset(id);
       setActiveDataset(data);
+      setIsOfflineMode(false);
       workspaceSync.queueAutoSave({
         dataset: {
           workspace_id: data.session_id,
@@ -102,6 +128,24 @@ export default function ExplorerPage() {
           updated_at: new Date().toISOString(),
         },
       });
+
+      // Fetch and persist full raw CSV in IndexedDB in background
+      api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
+        workspaceSync.queueAutoSave({
+          dataset: {
+            workspace_id: data.session_id,
+            metadata: data.metadata,
+            columns: data.columns,
+            records: data.records,
+            total_rows: data.total_rows,
+            total_cols: data.total_cols,
+            memory_mb: data.memory_mb,
+            raw_csv: fullCsv,
+            updated_at: new Date().toISOString(),
+          },
+        });
+      }).catch((e) => console.warn("Background raw CSV persistence skipped:", e));
+
       setSuccessMsg(`Benchmark '${data.metadata.name}' loaded successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
     } catch (err: any) {
       const cat = categorizeApiError(err);
@@ -149,6 +193,7 @@ export default function ExplorerPage() {
     try {
       const data = await api.loadHFDataset(datasetName, "train", 2000);
       setActiveDataset(data);
+      setIsOfflineMode(false);
       workspaceSync.queueAutoSave({
         dataset: {
           workspace_id: data.session_id,
@@ -161,6 +206,24 @@ export default function ExplorerPage() {
           updated_at: new Date().toISOString(),
         },
       });
+
+      // Fetch and persist full raw CSV in background
+      api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
+        workspaceSync.queueAutoSave({
+          dataset: {
+            workspace_id: data.session_id,
+            metadata: data.metadata,
+            columns: data.columns,
+            records: data.records,
+            total_rows: data.total_rows,
+            total_cols: data.total_cols,
+            memory_mb: data.memory_mb,
+            raw_csv: fullCsv,
+            updated_at: new Date().toISOString(),
+          },
+        });
+      }).catch((e) => console.warn("Background raw CSV persistence skipped:", e));
+
       setSuccessMsg(`Streamed '${datasetName}' via HF Dataset API (${data.total_rows.toLocaleString()} rows).`);
     } catch (err: any) {
       const cat = categorizeApiError(err);
@@ -209,6 +272,16 @@ export default function ExplorerPage() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    // Read raw text if it is a text-based tabular file (.csv, .tsv, .txt)
+    let rawCsvText: string | undefined;
+    if (ext === ".csv" || ext === ".tsv" || ext === ".txt") {
+      try {
+        rawCsvText = await file.text();
+      } catch (readErr) {
+        console.warn("Could not read raw CSV text directly from File:", readErr);
+      }
+    }
+
     try {
       setUploadStage("Streaming to secure in-memory buffer...");
       const data = await api.uploadFile(
@@ -226,6 +299,7 @@ export default function ExplorerPage() {
       setUploadProgress(100);
       setUploadStage("Audit complete!");
       setActiveDataset(data);
+      setIsOfflineMode(false);
       workspaceSync.queueAutoSave({
         dataset: {
           workspace_id: data.session_id,
@@ -235,9 +309,30 @@ export default function ExplorerPage() {
           total_rows: data.total_rows,
           total_cols: data.total_cols,
           memory_mb: data.memory_mb,
+          raw_csv: rawCsvText,
           updated_at: new Date().toISOString(),
         },
       });
+
+      // If non-CSV file (e.g. Excel, JSON, PDF), fetch converted CSV from backend to persist full dataset
+      if (!rawCsvText) {
+        api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
+          workspaceSync.queueAutoSave({
+            dataset: {
+              workspace_id: data.session_id,
+              metadata: data.metadata,
+              columns: data.columns,
+              records: data.records,
+              total_rows: data.total_rows,
+              total_cols: data.total_cols,
+              memory_mb: data.memory_mb,
+              raw_csv: fullCsv,
+              updated_at: new Date().toISOString(),
+            },
+          });
+        }).catch((e) => console.warn("Background raw CSV fetch skipped:", e));
+      }
+
       const displayExt = ext.replace(".", "").toUpperCase();
       setSuccessMsg(
         `Parsed ${displayExt} '${file.name}' successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`
@@ -373,6 +468,20 @@ export default function ExplorerPage() {
         </div>
 
         {/* Notification Banners */}
+        {isOfflineMode && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                <strong>Offline / Local Mode:</strong> Dataset restored from browser IndexedDB storage. Backend is currently offline or sleeping; remote actions are paused until reconnected.
+              </span>
+            </div>
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono text-[10px] uppercase font-bold shrink-0 ml-2">
+              LOCAL CACHE
+            </span>
+          </div>
+        )}
+
         {error && (
           <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs flex items-center space-x-2.5 animate-in fade-in">
             <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />

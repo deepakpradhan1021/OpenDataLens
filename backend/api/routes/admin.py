@@ -4,14 +4,98 @@ Phase 7.2: Protected Monitoring Endpoints with Constant-Time Auth & IP Rate Limi
 """
 
 import os
+import ipaddress
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Request, HTTPException, status, Header
 from core.telemetry import telemetry_collector
 
 logger = logging.getLogger("OpenDataLens.Admin")
 
 router = APIRouter(prefix="/admin", tags=["Admin Telemetry"])
+
+# Default RFC 1918 / loopback / private networks considered trusted reverse proxies
+DEFAULT_TRUSTED_PROXIES: List[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+]
+
+
+def _get_trusted_networks() -> List[Any]:
+    networks = list(DEFAULT_TRUSTED_PROXIES)
+    extra = os.getenv("TRUSTED_PROXIES", "").strip()
+    if extra:
+        for item in extra.split(","):
+            item = item.strip()
+            if item:
+                try:
+                    networks.append(ipaddress.ip_network(item, strict=False))
+                except ValueError:
+                    logger.warning(f"Invalid network in TRUSTED_PROXIES environment variable: {item}")
+    return networks
+
+
+def is_trusted_peer(host: str) -> bool:
+    """Checks whether the immediate connection peer is a trusted reverse proxy."""
+    if not host:
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+        trusted = _get_trusted_networks()
+        return any(ip in net for net in trusted)
+    except ValueError:
+        return False
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Resolves client IP securely against IP spoofing.
+    - If the direct socket peer (request.client.host) is NOT a trusted proxy,
+      we return request.client.host directly. Client-supplied headers are completely ignored.
+    - If immediate socket peer is a trusted reverse proxy (e.g. Render internal proxy),
+      we traverse the X-Forwarded-For chain in reverse (right to left) and return the first
+      IP that is not a trusted proxy (i.e. the real client that connected to the proxy).
+    - If all IPs in the chain are trusted proxies, returns the leftmost valid IP.
+    - Falls back to request.client.host or '127.0.0.1' if parsing fails.
+    """
+    peer = request.client.host if request.client else "127.0.0.1"
+
+    # If the direct socket peer is NOT a trusted proxy, do NOT trust any forwarding headers!
+    if not is_trusted_peer(peer):
+        return peer
+
+    # Peer is a trusted reverse proxy; safely inspect X-Forwarded-For
+    forwarded = request.headers.get("x-forwarded-for")
+    if not forwarded:
+        # Check CF-Connecting-IP if behind Cloudflare and peer is trusted
+        cf_ip = request.headers.get("cf-connecting-ip")
+        if cf_ip:
+            cf_ip = cf_ip.strip()
+            try:
+                ipaddress.ip_address(cf_ip)
+                return cf_ip
+            except ValueError:
+                pass
+        return peer
+
+    # Parse X-Forwarded-For from right to left (most recent downstream first)
+    raw_ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+    if not raw_ips:
+        return peer
+
+    for ip_str in reversed(raw_ips):
+        try:
+            ipaddress.ip_address(ip_str)
+            if not is_trusted_peer(ip_str):
+                return ip_str
+        except ValueError:
+            continue
+
+    return raw_ips[0]
 
 
 def extract_admin_key(
@@ -33,17 +117,6 @@ def extract_admin_key(
             return parts[0].strip()
 
     return None
-
-
-def get_client_ip(request: Request) -> str:
-    """
-    Retrieves real client IP taking forwarded headers into account safely.
-    """
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        # First IP in the comma-separated chain is the client
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "127.0.0.1"
 
 
 def verify_admin_access(request: Request, admin_key: Optional[str]) -> None:

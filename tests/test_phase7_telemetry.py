@@ -246,6 +246,9 @@ def test_admin_rate_limiting_lockout(monkeypatch):
     )
     assert blocked_resp.status_code == 429
 
+    # Clean up lockouts for subsequent tests
+    telemetry_collector.reset_admin_lockouts()
+
 
 # ==============================================================================
 # 6. ZERO LEAKAGE OF DATASETS, TOKENS, OR CREDENTIALS
@@ -265,3 +268,113 @@ def test_telemetry_snapshot_scrubbed_clean(monkeypatch):
     assert "dataset_records" not in text
     assert "raw_csv" not in text
     assert "argon2" not in text
+
+
+# ==============================================================================
+# 7. ANTI-SPOOFING & REVERSE PROXY RATE LIMITING
+# ==============================================================================
+
+def test_admin_rate_limiting_anti_spoofing_rotating_forwarded(monkeypatch):
+    """
+    Direct untrusted peer cannot bypass rate limiting by rotating client-supplied X-Forwarded-For.
+    Client socket IP is enforced, causing lockout at attempt 5.
+    """
+    monkeypatch.setenv("OPENDATALENS_ADMIN_KEY", TEST_ADMIN_KEY)
+    telemetry_collector.reset_admin_lockouts()
+
+    untrusted_client = TestClient(app, client=("198.51.100.99", 54321))
+    statuses = []
+    for i in range(10):
+        resp = untrusted_client.get(
+            "/api/admin/verify",
+            headers={"X-Admin-Key": "wrong_key", "X-Forwarded-For": f"10.0.0.{i}"}
+        )
+        statuses.append(resp.status_code)
+
+    telemetry_collector.reset_admin_lockouts()
+
+    # Attempts 1-4 should be 401; attempt 5+ must be 429
+    assert statuses[:4] == [401, 401, 401, 401]
+    assert statuses[4:] == [429, 429, 429, 429, 429, 429]
+
+
+def test_admin_reverse_proxy_rightmost_untrusted_resolution(monkeypatch):
+    """
+    When behind a trusted reverse proxy (e.g. 127.0.0.1 or Render internal),
+    rightmost untrusted client in X-Forwarded-For is extracted, ignoring client-injected spoofed headers.
+    """
+    monkeypatch.setenv("OPENDATALENS_ADMIN_KEY", TEST_ADMIN_KEY)
+    telemetry_collector.reset_admin_lockouts()
+
+    # Immediate peer is 127.0.0.1 (trusted reverse proxy)
+    trusted_proxy_client = TestClient(app, client=("127.0.0.1", 8080))
+
+    # Attacker tries to spoof client IP by prefixing with rotating dummy IP, but proxy appends attacker's IP
+    real_attacker_ip = "203.0.113.88"
+    statuses = []
+    for i in range(7):
+        # Header formatted by proxy: spoofed, real_attacker_ip
+        proxy_header = f"1.2.3.{i}, {real_attacker_ip}"
+        resp = trusted_proxy_client.get(
+            "/api/admin/verify",
+            headers={"X-Admin-Key": "wrong_key", "X-Forwarded-For": proxy_header}
+        )
+        statuses.append(resp.status_code)
+
+    telemetry_collector.reset_admin_lockouts()
+
+    assert statuses[:4] == [401, 401, 401, 401]
+    assert statuses[4:] == [429, 429, 429]
+
+
+# ==============================================================================
+# 8. CRITICAL MEMORY THROTTLING CHECKS
+# ==============================================================================
+
+def test_memory_critical_protection_endpoints(monkeypatch):
+    """
+    Heavy endpoints (/upload-file, /load-curated, /load-hf, /train) return HTTP 503
+    with Retry-After: 30 when memory is critical (>450 MB).
+    """
+    monkeypatch.setattr(telemetry_collector, "is_memory_critical", lambda: True)
+
+    # 1. upload-file
+    dummy_csv = b"a,b,c\n1,2,3"
+    resp_upload = client.post(
+        "/api/datasets/upload-file",
+        files={"file": ("test.csv", dummy_csv, "text/csv")},
+        data={"session_id": "test_mem_session"}
+    )
+    assert resp_upload.status_code == 503
+    assert "critically constrained" in resp_upload.json()["detail"].lower()
+    assert resp_upload.headers.get("retry-after") == "30"
+
+    # 2. load-curated
+    resp_curated = client.post(
+        "/api/datasets/load-curated",
+        json={"dataset_id": "iris", "session_id": "test_mem_session"}
+    )
+    assert resp_curated.status_code == 503
+    assert resp_curated.headers.get("retry-after") == "30"
+
+    # 3. load-hf
+    resp_hf = client.post(
+        "/api/datasets/load-hf",
+        json={"dataset_name": "imdb", "session_id": "test_mem_session", "max_rows": 10}
+    )
+    assert resp_hf.status_code == 503
+    assert resp_hf.headers.get("retry-after") == "30"
+
+    # 4. train
+    resp_train = client.post(
+        "/api/ml/train",
+        json={
+            "session_id": "test_mem_session",
+            "problem_type": "classification",
+            "target_col": "target",
+            "feature_cols": ["feat1", "feat2"],
+            "selected_models": ["logistic_regression"]
+        }
+    )
+    assert resp_train.status_code == 503
+    assert resp_train.headers.get("retry-after") == "30"
