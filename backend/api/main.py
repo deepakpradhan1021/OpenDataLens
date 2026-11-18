@@ -22,7 +22,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api.routes import health, datasets, quality, ml, evaluation, reports, drift, copilot, projects, share
+from backend.api.routes import health, datasets, quality, ml, evaluation, reports, drift, copilot, projects, share, sessions
 
 app = FastAPI(
     title="OpenDataLens SaaS API",
@@ -33,30 +33,50 @@ app = FastAPI(
 )
 
 # CORS Security Setup
-DEFAULT_ORIGINS = [
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production").lower()
+is_production = ENVIRONMENT == "production"
+
+# Approved Production Origins
+PRODUCTION_ORIGINS = [
+    "https://opendatalens-app.vercel.app"
+]
+
+# Development / Local Origins (only loaded in non-production or when explicitly passed)
+DEV_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "https://opendatalens-app.vercel.app"
+    "http://127.0.0.1:8000"
 ]
+
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 if allowed_origins_env:
     allowed_origins = [orig.strip() for orig in allowed_origins_env.split(",") if orig.strip()]
-    for d in DEFAULT_ORIGINS:
-        if d not in allowed_origins:
-            allowed_origins.append(d)
+elif is_production:
+    allowed_origins = list(PRODUCTION_ORIGINS)
 else:
-    allowed_origins = DEFAULT_ORIGINS
+    allowed_origins = list(PRODUCTION_ORIGINS) + list(DEV_ORIGINS)
+
+# Scoped preview regex: restricts origins strictly to OpenDataLens preview deployments on Vercel
+# (e.g., https://opendatalens-app-git-*.vercel.app), never arbitrary third-party vercel apps.
+OPENDATALENS_PREVIEW_REGEX = r"^https://opendatalens-app(-[a-zA-Z0-9_-]+)?\.vercel\.app$"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"^https://([a-zA-Z0-9-]+\.)*vercel\.app$",
+    allow_origin_regex=OPENDATALENS_PREVIEW_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=["*"],
-    expose_headers=["X-Session-ID"]
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Session-ID",
+        "X-Share-Password",
+        "Accept",
+        "Origin",
+        "User-Agent"
+    ],
+    expose_headers=["X-Session-ID", "X-Session-Created", "Retry-After"]
 )
 
 # Global Exception Handler with Sanitized Production Responses
@@ -85,6 +105,7 @@ app.include_router(drift.router, prefix="/api")
 app.include_router(copilot.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(share.router, prefix="/api")
+app.include_router(sessions.router, prefix="/api")
 
 
 @app.get("/")

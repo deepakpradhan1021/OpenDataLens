@@ -187,8 +187,13 @@ def create_share_link(
         "preview_records": preview_records if "preview" in sections else []
     }
 
+    from backend.api.security import verify_session_token
+    _, canonical_session = verify_session_token(session_id, strict=False)
+    owner_id = canonical_session or session_id.strip()
+
     share_record = {
         "token": token,
+        "owner_session_id": owner_id,
         "title": title.strip() if title and title.strip() else f"Analysis: {report_payload['dataset_name']}",
         "created_at": created_at.isoformat(),
         "expires_at": expires_at,
@@ -291,19 +296,34 @@ def get_shared_report(token: str, password: Optional[str] = None) -> Dict[str, A
     }
 
 
-def revoke_share_link(token: str) -> bool:
-    """Permanently delete and invalidate a shared snapshot."""
+def revoke_share_link(token: str, session_id: Optional[str] = None) -> bool:
+    """Permanently delete and invalidate a shared snapshot after verifying owner."""
     _ensure_dir()
     if not token or not token.replace("-", "").replace("_", "").isalnum() or len(token) > 128:
         return False
 
     file_path = os.path.join(SHARES_DIR, f"{token}.json")
     with _lock:
-        _clear_failed_attempts(token)
-        if os.path.exists(file_path):
+        if not os.path.exists(file_path):
+            return False
+
+        if session_id:
+            from backend.api.security import verify_session_token
+            _, canonical_session = verify_session_token(session_id, strict=False)
+            target_id = canonical_session or session_id.strip()
             try:
-                os.remove(file_path)
-                return True
+                with open(file_path, "r", encoding="utf-8") as fp:
+                    record = json.load(fp)
+                owner = record.get("owner_session_id")
+                if owner and owner != target_id:
+                    return False
             except Exception:
                 return False
+
+        _clear_failed_attempts(token)
+        try:
+            os.remove(file_path)
+            return True
+        except Exception:
+            return False
     return False

@@ -23,13 +23,15 @@ JOB_TTL_SECONDS = 3600
 MAX_HISTORY_SNAPSHOTS = 8
 
 UUID_OR_SLUG_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{8,64}$")
+TOKEN_PATTERN = re.compile(r"^[a-zA-Z0-9_.-]{8,128}$")
 
 
 def is_valid_session_id(session_id: Optional[str]) -> bool:
-    """Validate that a session ID is non-empty and conforms to safe UUID or slug pattern."""
+    """Validate that a session ID is non-empty and conforms to safe UUID, token or slug pattern."""
     if not session_id or not isinstance(session_id, str):
         return False
-    return bool(UUID_OR_SLUG_PATTERN.match(session_id.strip()))
+    clean = session_id.strip()
+    return bool(UUID_OR_SLUG_PATTERN.match(clean) or TOKEN_PATTERN.match(clean))
 
 
 def generate_session_id() -> str:
@@ -43,6 +45,19 @@ class SessionStore:
         self._ttl_seconds = ttl_seconds
         self._sessions: Dict[str, Dict[str, Any]] = {}
         self._jobs: Dict[str, Dict[str, Any]] = {}
+
+    def _resolve_session_key(self, session_id: str) -> str:
+        """Resolve canonical session key, verifying signature if signed."""
+        if not is_valid_session_id(session_id):
+            raise ValueError(f"Invalid session ID format: '{session_id}'. Must be a 8-128 char UUID or signed token.")
+
+        from backend.api.security import verify_session_token
+        is_valid, canonical_id = verify_session_token(session_id, strict=False)
+        if not is_valid or not canonical_id:
+            if "." in session_id:
+                raise ValueError("Invalid or tampered session token signature.")
+            return session_id.strip()
+        return canonical_id
 
     def _evict_expired_unlocked(self) -> int:
         """Internal sweep to clean up inactive sessions and old jobs (caller must hold lock)."""
@@ -84,10 +99,7 @@ class SessionStore:
         Retrieve or initialize a workspace session.
         Validates session ID format and updates last accessed timestamp.
         """
-        if not is_valid_session_id(session_id):
-            raise ValueError(f"Invalid session ID format: '{session_id}'. Must be a 8-64 char UUID or slug.")
-
-        clean_id = session_id.strip()
+        clean_id = self._resolve_session_key(session_id)
         now = time.time()
 
         with self._lock:
@@ -397,9 +409,11 @@ class SessionStore:
 
     def get_dataset(self, session_id: str) -> Optional[pd.DataFrame]:
         with self._lock:
-            if not is_valid_session_id(session_id):
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
                 return None
-            session = self._sessions.get(session_id.strip())
+            session = self._sessions.get(clean_id)
             if session:
                 session["last_accessed_at"] = time.time()
                 return session.get("dataset")
@@ -407,9 +421,11 @@ class SessionStore:
 
     def get_metadata(self, session_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
-            if not is_valid_session_id(session_id):
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
                 return None
-            session = self._sessions.get(session_id.strip())
+            session = self._sessions.get(clean_id)
             if session:
                 session["last_accessed_at"] = time.time()
                 return session.get("metadata")
@@ -425,9 +441,11 @@ class SessionStore:
 
     def get_quality_analysis(self, session_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
-            if not is_valid_session_id(session_id):
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
                 return None
-            session = self._sessions.get(session_id.strip())
+            session = self._sessions.get(clean_id)
             if session:
                 session["last_accessed_at"] = time.time()
                 return session.get("quality_analysis")
@@ -436,9 +454,11 @@ class SessionStore:
     def has_session(self, session_id: str) -> bool:
         """Check if an active session exists without initializing one."""
         with self._lock:
-            if not is_valid_session_id(session_id):
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
                 return False
-            return session_id.strip() in self._sessions
+            return clean_id in self._sessions
 
     def set_ml_results(
         self,
@@ -449,7 +469,10 @@ class SessionStore:
         comparison_df: pd.DataFrame
     ) -> bool:
         with self._lock:
-            clean_id = session_id.strip() if session_id else ""
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
+                return False
             if clean_id not in self._sessions:
                 logger.warning(
                     f"[SessionStore] Prevented writing ML results to cleared/expired session: {clean_id}"
@@ -468,7 +491,10 @@ class SessionStore:
     def record_experiment(self, session_id: str, experiment_data: Dict[str, Any]) -> bool:
         """Append an experiment run record to the session history if session still exists."""
         with self._lock:
-            clean_id = session_id.strip() if session_id else ""
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
+                return False
             if clean_id not in self._sessions:
                 return False
             session = self._sessions[clean_id]
@@ -482,9 +508,11 @@ class SessionStore:
 
     def get_experiments(self, session_id: str) -> List[Dict[str, Any]]:
         with self._lock:
-            if not is_valid_session_id(session_id):
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
                 return []
-            session = self._sessions.get(session_id.strip())
+            session = self._sessions.get(clean_id)
             if session:
                 session["last_accessed_at"] = time.time()
                 return list(session.get("experiments", []))
@@ -496,7 +524,10 @@ class SessionStore:
         and cancel any pending or actively executing background training jobs.
         """
         with self._lock:
-            clean_id = session_id.strip() if session_id else ""
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
+                return False
             now = time.time()
             cancelled_jobs_count = 0
 
@@ -519,9 +550,13 @@ class SessionStore:
 
     def create_job(self, job_id: str, session_id: str, total_models: int) -> None:
         with self._lock:
+            try:
+                clean_id = self._resolve_session_key(session_id)
+            except ValueError:
+                clean_id = session_id.strip() if session_id else "default"
             self._jobs[job_id] = {
                 "job_id": job_id,
-                "session_id": session_id.strip() if session_id else "default",
+                "session_id": clean_id,
                 "status": "pending",
                 "progress": 0,
                 "total_models": total_models,

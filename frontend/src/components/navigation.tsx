@@ -85,8 +85,11 @@ export function Navigation() {
   }, [refreshActiveDataset]);
 
   useEffect(() => {
-    // Check Workspace ID
+    // Check and initialize server-verified Workspace ID
     setWorkspaceId(getWorkspaceId());
+    api.initializeSession().then((token) => {
+      if (token) setWorkspaceId(token);
+    });
 
     // Subscribe to global cold-start state
     const unsubscribe = subscribeColdStart((status) => {

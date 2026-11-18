@@ -13,7 +13,7 @@ import tempfile
 import threading
 import zipfile
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import pandas as pd
 
 from backend.api.session_store import store
@@ -34,6 +34,22 @@ MAX_COMPRESSION_RATIO = 20.0
 
 def _ensure_dir():
     os.makedirs(PROJECTS_DIR, exist_ok=True)
+
+
+def _resolve_session_ownership_id(session_id: Optional[str]) -> Tuple[Optional[str], bool]:
+    """
+    Resolve session identity and check if verified.
+    Returns: (canonical_id, is_signed_and_valid)
+    """
+    if not session_id:
+        return None, False
+    from backend.api.security import verify_session_token
+    is_valid, canonical_id = verify_session_token(session_id, strict=False)
+    if "." in session_id:
+        if not is_valid or not canonical_id:
+            raise ValueError("Invalid or tampered session token signature.")
+        return canonical_id, True
+    return canonical_id or session_id.strip(), False
 
 
 def _validate_project_id(project_id: str):
@@ -70,6 +86,10 @@ def list_projects(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
     if not session_id:
         return []
 
+    target_session, is_signed = _resolve_session_ownership_id(session_id)
+    if not target_session:
+        return []
+
     projects = []
     with _lock:
         for f in os.listdir(PROJECTS_DIR):
@@ -85,7 +105,11 @@ def list_projects(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
 
                     # Enforce session ownership filter
                     owner = data.get("owner_session_id")
-                    if owner and owner != session_id:
+                    if owner and owner != target_session:
+                        continue
+
+                    # If project was created by a verified session, require verified signature to view
+                    if data.get("is_verified_session") and not is_signed:
                         continue
 
                     projects.append({
@@ -100,7 +124,8 @@ def list_projects(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
                         "clean_steps_count": len(data.get("clean_history", [])),
                         "models_trained_count": len(data.get("model_evaluations", {})),
                         "has_dataset": os.path.exists(os.path.join(PROJECTS_DIR, f"{proj_id}.parquet")) or os.path.exists(os.path.join(PROJECTS_DIR, f"{proj_id}.csv")),
-                        "owner_session_id": owner
+                        "owner_session_id": owner,
+                        "is_verified_session": data.get("is_verified_session", False)
                     })
                 except Exception:
                     continue
@@ -127,8 +152,12 @@ def get_project(project_id: str, session_id: Optional[str] = None) -> Optional[D
 
     # Check ownership
     owner = data.get("owner_session_id")
-    if session_id and owner and owner != session_id:
-        return None
+    if session_id:
+        target_session, is_signed = _resolve_session_ownership_id(session_id)
+        if owner and owner != target_session:
+            return None
+        if data.get("is_verified_session") and not is_signed:
+            return None
 
     return data
 
@@ -144,7 +173,8 @@ def save_project(
     Attaches owner_session_id to prevent cross-user modification.
     """
     _ensure_dir()
-    if not session_id or len(session_id) < 8:
+    target_session, is_signed = _resolve_session_ownership_id(session_id)
+    if not target_session or len(target_session) < 8:
         raise ValueError("Valid session ID (8+ chars) required to save project.")
 
     session = store.get_or_create_session(session_id)
@@ -174,7 +204,8 @@ def save_project(
 
     project_payload = {
         "id": pid,
-        "owner_session_id": session_id,
+        "owner_session_id": target_session,
+        "is_verified_session": is_signed,
         "name": name.strip() if name and name.strip() else f"Project {pid[:8]}",
         "description": description.strip() if description else "",
         "created_at": existing.get("created_at") if existing else now_iso,
@@ -365,7 +396,8 @@ def import_project_bundle(bundle_bytes: bytes, session_id: str) -> Dict[str, Any
     - Reassigns ownership to importing guest session.
     """
     _ensure_dir()
-    if not session_id or len(session_id) < 8:
+    target_session, is_signed = _resolve_session_ownership_id(session_id)
+    if not target_session or len(target_session) < 8:
         raise ValueError("Valid session ID (8+ chars) required to import project bundle.")
 
     if len(bundle_bytes) > MAX_BUNDLE_BYTES:
@@ -448,7 +480,8 @@ def import_project_bundle(bundle_bytes: bytes, session_id: str) -> Dict[str, Any
 
     new_pid = str(uuid.uuid4())
     meta_content["id"] = new_pid
-    meta_content["owner_session_id"] = session_id
+    meta_content["owner_session_id"] = target_session
+    meta_content["is_verified_session"] = is_signed
     meta_content["name"] = f"{meta_content.get('name', 'Imported Project')} (Imported)"
     meta_content["updated_at"] = datetime.now().isoformat()
 

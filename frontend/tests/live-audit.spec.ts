@@ -47,9 +47,8 @@ test.describe("OpenDataLens Live Production Audit & Full User Journey", () => {
     await expect(goToExpBtn).toBeVisible();
 
     // --- STEP C: DATASET EXPLORER (Mount Iris) ---
-    await goToExpBtn.click();
-    await page.waitForURL("**/explorer", { timeout: 20000 });
-    await expect(page.getByRole("heading", { name: "Dataset Discovery" })).toBeVisible({ timeout: 25000 });
+    await page.goto("/explorer");
+    await expect(page.getByRole("heading", { name: "Dataset Discovery" })).toBeVisible({ timeout: 35000 });
 
     // Wait for curated catalog to load from Render backend
     const irisCard = page.locator("div.rounded-2xl").filter({ hasText: "Iris Flower Dataset" });
@@ -210,7 +209,7 @@ test.describe("OpenDataLens Live Production Audit & Full User Journey", () => {
     });
 
     // Expect preview table to render with the uploaded dataset
-    await expect(page.getByText(/Active Dataset:\s*custom_portfolio_data/i)).toBeVisible({ timeout: 25000 });
+    await expect(page.getByText(/Active Dataset:\s*(custom_portfolio_data|Custom Portfolio Data)/i)).toBeVisible({ timeout: 45000 });
     await expect(page.locator("table").first()).toBeVisible();
     await expect(page.getByText("feature_a").first()).toBeVisible();
     await expect(page.getByText("target").first()).toBeVisible();

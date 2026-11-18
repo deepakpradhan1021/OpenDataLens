@@ -107,9 +107,14 @@ def unlock_shared_report(token: str, req: UnlockShareRequest):
 
 
 @router.delete("/{token}")
-def delete_shared_report(token: str):
-    """Revoke and permanently delete a shared report link."""
-    success = revoke_share_link(token)
+def delete_shared_report(
+    token: str,
+    session_id: Optional[str] = None,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-ID")
+):
+    """Revoke and permanently delete a shared report link after verifying owner."""
+    sid = x_session_id or session_id
+    success = revoke_share_link(token, session_id=sid)
     if not success:
-        raise HTTPException(status_code=404, detail="Shared report not found or already deleted.")
+        raise HTTPException(status_code=404, detail="Shared report not found, already deleted, or access denied.")
     return {"status": "success", "message": "Share link revoked successfully."}

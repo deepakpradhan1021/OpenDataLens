@@ -34,6 +34,13 @@ class LoadProjectRequest(BaseModel):
     session_id: str = Field(..., description="Target session ID to restore project into")
 
 
+def _handle_project_error(e: Exception):
+    err_str = str(e)
+    if "tampered" in err_str.lower() or "signature" in err_str.lower() or "untrusted" in err_str.lower():
+        raise HTTPException(status_code=401, detail=err_str)
+    raise HTTPException(status_code=400, detail=err_str)
+
+
 @router.get("")
 def get_all_projects(
     session_id: Optional[str] = Query(None),
@@ -46,7 +53,10 @@ def get_all_projects(
     sid = x_session_id or session_id
     if not sid:
         return {"projects": []}
-    return {"projects": list_projects(session_id=sid)}
+    try:
+        return {"projects": list_projects(session_id=sid)}
+    except ValueError as e:
+        _handle_project_error(e)
 
 
 @router.post("/save")
@@ -61,7 +71,7 @@ def save_current_project(req: SaveProjectRequest):
         )
         return {"status": "success", "project": project}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        _handle_project_error(e)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save project: {str(e)}")
 
@@ -77,7 +87,7 @@ def get_project_details(
     try:
         proj = get_project(project_id, session_id=sid)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        _handle_project_error(e)
 
     if not proj:
         raise HTTPException(status_code=404, detail="Project not found or access denied.")
@@ -91,7 +101,9 @@ def restore_project(project_id: str, req: LoadProjectRequest):
         result = load_project(project_id=project_id, session_id=req.session_id)
         return {"status": "success", "result": result}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        if "access denied" in str(e).lower() or "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        _handle_project_error(e)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to restore project: {str(e)}")
 
@@ -107,7 +119,7 @@ def remove_project(
     try:
         success = delete_project(project_id, session_id=sid)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        _handle_project_error(e)
 
     if not success:
         raise HTTPException(status_code=404, detail="Project not found, already deleted, or access denied.")
@@ -130,7 +142,9 @@ def download_bundle(
             headers={"Content-Disposition": f"attachment; filename=project_{project_id[:8]}.odl"}
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        if "not found" in str(e).lower() or "access denied" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        _handle_project_error(e)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to bundle project: {str(e)}")
 
@@ -150,6 +164,6 @@ async def import_bundle(
         res = import_project_bundle(content, session_id=sid)
         return {"status": "success", "project": res}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        _handle_project_error(e)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to import project bundle: {str(e)}")

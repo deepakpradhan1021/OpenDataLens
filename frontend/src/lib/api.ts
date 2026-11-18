@@ -190,6 +190,16 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => {
     activeRequestCount = Math.max(0, activeRequestCount - 1);
+
+    // Synchronize server-issued guest session token if present in headers
+    const serverSession = response.headers?.["x-session-id"] || response.headers?.["X-Session-ID"];
+    if (serverSession && typeof window !== "undefined" && typeof serverSession === "string" && serverSession.length >= 8) {
+      const current = localStorage.getItem("opendatalens_workspace_id");
+      if (current !== serverSession) {
+        localStorage.setItem("opendatalens_workspace_id", serverSession);
+      }
+    }
+
     if (!isBackendAwake) {
       isBackendAwake = true;
       if (wakingTimer) {
@@ -811,8 +821,36 @@ export const api = {
     return data;
   },
 
-  revokeShare: async (token: string): Promise<{ status: string; message: string }> => {
-    const { data } = await apiClient.delete(`/share/${token}`);
+  revokeShare: async (token: string, sessionId?: string): Promise<{ status: string; message: string }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.delete(`/share/${token}`, {
+      headers: { "X-Session-ID": sid }
+    });
+    return data;
+  },
+
+  // Guest Session Identity Management
+  initializeSession: async (): Promise<string> => {
+    try {
+      const current = getWorkspaceId();
+      const { data } = await apiClient.post("/sessions/init", {}, {
+        headers: current ? { "X-Session-ID": current } : {}
+      });
+      if (data?.session_token && typeof window !== "undefined") {
+        localStorage.setItem("opendatalens_workspace_id", data.session_token);
+        return data.session_token;
+      }
+    } catch (err) {
+      console.warn("Guest session initialization notice:", err);
+    }
+    return getWorkspaceId();
+  },
+
+  validateSession: async (sessionId?: string): Promise<{ valid: boolean; session_id?: string; message: string }> => {
+    const sid = sessionId || getWorkspaceId();
+    const { data } = await apiClient.get("/sessions/validate", {
+      headers: { "X-Session-ID": sid }
+    });
     return data;
   },
 };
