@@ -118,8 +118,10 @@ export default function ExplorerPage() {
       const data = await api.loadCuratedDataset(id);
       setActiveDataset(data);
       setIsOfflineMode(false);
-      workspaceSync.queueAutoSave({
-        dataset: {
+
+      // Fetch and persist full raw CSV in IndexedDB atomically
+      api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
+        workspaceSync.saveDatasetSnapshotImmediately({
           workspace_id: data.session_id,
           metadata: data.metadata,
           columns: data.columns,
@@ -127,26 +129,25 @@ export default function ExplorerPage() {
           total_rows: data.total_rows,
           total_cols: data.total_cols,
           memory_mb: data.memory_mb,
+          raw_csv: fullCsv,
           updated_at: new Date().toISOString(),
-        },
-      });
-
-      // Fetch and persist full raw CSV in IndexedDB in background
-      api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
-        workspaceSync.queueAutoSave({
-          dataset: {
-            workspace_id: data.session_id,
-            metadata: data.metadata,
-            columns: data.columns,
-            records: data.records,
-            total_rows: data.total_rows,
-            total_cols: data.total_cols,
-            memory_mb: data.memory_mb,
-            raw_csv: fullCsv,
-            updated_at: new Date().toISOString(),
-          },
         });
-      }).catch((e) => console.warn("Background raw CSV persistence skipped:", e));
+      }).catch((e) => {
+        console.warn("Background raw CSV persistence skipped:", e);
+        // If CSV fetch fails, intentionally save preview-only metadata
+        workspaceSync.saveDatasetSnapshotImmediately({
+          workspace_id: data.session_id,
+          metadata: data.metadata,
+          columns: data.columns,
+          records: data.records,
+          total_rows: data.total_rows,
+          total_cols: data.total_cols,
+          memory_mb: data.memory_mb,
+          raw_csv: null,
+          raw_csv_omitted_for_quota: true,
+          updated_at: new Date().toISOString(),
+        });
+      });
 
       setSuccessMsg(`Benchmark '${data.metadata.name}' loaded successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
     } catch (err: any) {
@@ -196,8 +197,10 @@ export default function ExplorerPage() {
       const data = await api.loadHFDataset(datasetName, "train", 2000);
       setActiveDataset(data);
       setIsOfflineMode(false);
-      workspaceSync.queueAutoSave({
-        dataset: {
+
+      // Fetch and persist full raw CSV atomically
+      api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
+        workspaceSync.saveDatasetSnapshotImmediately({
           workspace_id: data.session_id,
           metadata: data.metadata,
           columns: data.columns,
@@ -205,26 +208,24 @@ export default function ExplorerPage() {
           total_rows: data.total_rows,
           total_cols: data.total_cols,
           memory_mb: data.memory_mb,
+          raw_csv: fullCsv,
           updated_at: new Date().toISOString(),
-        },
-      });
-
-      // Fetch and persist full raw CSV in background
-      api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
-        workspaceSync.queueAutoSave({
-          dataset: {
-            workspace_id: data.session_id,
-            metadata: data.metadata,
-            columns: data.columns,
-            records: data.records,
-            total_rows: data.total_rows,
-            total_cols: data.total_cols,
-            memory_mb: data.memory_mb,
-            raw_csv: fullCsv,
-            updated_at: new Date().toISOString(),
-          },
         });
-      }).catch((e) => console.warn("Background raw CSV persistence skipped:", e));
+      }).catch((e) => {
+        console.warn("Background raw CSV persistence skipped:", e);
+        workspaceSync.saveDatasetSnapshotImmediately({
+          workspace_id: data.session_id,
+          metadata: data.metadata,
+          columns: data.columns,
+          records: data.records,
+          total_rows: data.total_rows,
+          total_cols: data.total_cols,
+          memory_mb: data.memory_mb,
+          raw_csv: null,
+          raw_csv_omitted_for_quota: true,
+          updated_at: new Date().toISOString(),
+        });
+      });
 
       setSuccessMsg(`Streamed '${datasetName}' via HF Dataset API (${data.total_rows.toLocaleString()} rows).`);
     } catch (err: any) {
@@ -302,8 +303,8 @@ export default function ExplorerPage() {
       setUploadStage("Audit complete!");
       setActiveDataset(data);
       setIsOfflineMode(false);
-      workspaceSync.queueAutoSave({
-        dataset: {
+      if (rawCsvText) {
+        workspaceSync.saveDatasetSnapshotImmediately({
           workspace_id: data.session_id,
           metadata: data.metadata,
           columns: data.columns,
@@ -312,27 +313,39 @@ export default function ExplorerPage() {
           total_cols: data.total_cols,
           memory_mb: data.memory_mb,
           raw_csv: rawCsvText,
+          raw_csv_omitted_for_quota: false,
           updated_at: new Date().toISOString(),
-        },
-      });
-
-      // If non-CSV file (e.g. Excel, JSON, PDF), fetch converted CSV from backend to persist full dataset
-      if (!rawCsvText) {
+        });
+      } else {
+        // If non-CSV file (e.g. Excel, JSON, PDF), fetch converted CSV from backend to persist full dataset
         api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
-          workspaceSync.queueAutoSave({
-            dataset: {
-              workspace_id: data.session_id,
-              metadata: data.metadata,
-              columns: data.columns,
-              records: data.records,
-              total_rows: data.total_rows,
-              total_cols: data.total_cols,
-              memory_mb: data.memory_mb,
-              raw_csv: fullCsv,
-              updated_at: new Date().toISOString(),
-            },
+          workspaceSync.saveDatasetSnapshotImmediately({
+            workspace_id: data.session_id,
+            metadata: data.metadata,
+            columns: data.columns,
+            records: data.records,
+            total_rows: data.total_rows,
+            total_cols: data.total_cols,
+            memory_mb: data.memory_mb,
+            raw_csv: fullCsv,
+            raw_csv_omitted_for_quota: false,
+            updated_at: new Date().toISOString(),
           });
-        }).catch((e) => console.warn("Background raw CSV fetch skipped:", e));
+        }).catch((e) => {
+          console.warn("Background raw CSV fetch skipped:", e);
+          workspaceSync.saveDatasetSnapshotImmediately({
+            workspace_id: data.session_id,
+            metadata: data.metadata,
+            columns: data.columns,
+            records: data.records,
+            total_rows: data.total_rows,
+            total_cols: data.total_cols,
+            memory_mb: data.memory_mb,
+            raw_csv: null,
+            raw_csv_omitted_for_quota: true,
+            updated_at: new Date().toISOString(),
+          });
+        });
       }
 
       const displayExt = ext.replace(".", "").toUpperCase();

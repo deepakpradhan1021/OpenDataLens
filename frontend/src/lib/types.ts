@@ -48,7 +48,8 @@ export interface DatasetPreviewResponse {
   records: Record<string, any>[];
   is_full_dataset?: boolean;
   is_preview_only?: boolean;
-  raw_csv?: string;
+  raw_csv?: string | null;
+  raw_csv_omitted_for_quota?: boolean;
 }
 
 export interface QualityOverview {

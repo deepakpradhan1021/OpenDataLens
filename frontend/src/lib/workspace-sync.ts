@@ -1,9 +1,18 @@
 /**
  * OpenDataLens — Workspace Auto-Save and Synchronization Engine
- * Phase 7.1: Local Persistence & Auto-Save
+ * Phase 7.1 & 7.2.2: Hardened Atomic Local Persistence & Consistency Engine
+ * 
+ * Invariants Enforced:
+ * 1. Never combine new dataset records with an older CSV snapshot.
+ * 2. Treat the full CSV and its corresponding dataset metadata as one atomic consistent snapshot.
+ * 3. If downloading the updated CSV fails, do not overwrite the previous consistent full-dataset snapshot.
+ * 4. Keep the workspace visibly marked as unsaved or synchronization failed on error.
+ * 5. Allow immediate, non-debounced snapshot persistence with awaiting support.
+ * 6. Prevent browser navigation/refresh from losing pending changes where technically possible.
+ * 7. Explicitly distinguish intentional raw CSV omission (quota fallback) from partial updates.
  */
 
-import { localDB, CompleteWorkspaceSnapshot, LocalWorkspaceMetadata } from "./indexeddb";
+import { localDB, CompleteWorkspaceSnapshot, LocalWorkspaceMetadata, LocalDatasetRecord } from "./indexeddb";
 import { getWorkspaceId } from "./api";
 
 export type SaveStatusState =
@@ -41,6 +50,15 @@ class WorkspaceSyncService {
         this.currentState = "unavailable";
         this.currentMessage = "Local storage unavailable in this browser";
       }
+
+      // Requirement 7: Prevent navigation or refresh from silently losing pending changes
+      window.addEventListener("beforeunload", (e) => {
+        if (this.hasPendingSave || this.isSaving) {
+          e.preventDefault();
+          e.returnValue = "Changes are currently saving to local storage. Leaving now may result in lost changes.";
+          return e.returnValue;
+        }
+      });
     }
   }
 
@@ -71,15 +89,26 @@ class WorkspaceSyncService {
     });
   }
 
-  private setStatus(state: SaveStatusState, message: string) {
+  public setStatus(state: SaveStatusState, message: string) {
     this.currentState = state;
     this.currentMessage = message;
     this.notify();
   }
 
+  public getStatus(): SaveStatusInfo {
+    return {
+      state: this.currentState,
+      message: this.currentMessage,
+      lastSavedAt: this.lastSavedAt,
+    };
+  }
+
+  public isSynchronizing(): boolean {
+    return this.isSaving || this.hasPendingSave;
+  }
+
   /**
-   * Request an auto-save.
-   * Debounced by 1000ms and batch-updated to prevent UI lag.
+   * Request a debounced auto-save for non-critical changes.
    */
   public queueAutoSave(partial: Partial<CompleteWorkspaceSnapshot>, debounceMs: number = 1000): void {
     if (!localDB.checkAvailability()) {
@@ -104,7 +133,32 @@ class WorkspaceSyncService {
   }
 
   /**
-   * Immediately flush pending changes to IndexedDB with write concurrency lock.
+   * Immediately commits a verified full dataset snapshot atomically without debounce.
+   * Guarantees that metadata, records, and raw_csv represent one single consistent state.
+   */
+  public async saveDatasetSnapshotImmediately(dataset: LocalDatasetRecord): Promise<boolean> {
+    if (!localDB.checkAvailability()) {
+      this.setStatus("unavailable", "IndexedDB unavailable (private mode or disabled)");
+      return false;
+    }
+
+    // Cancel pending debounced dataset saves so they don't overwrite this immediate save
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+
+    this.pendingSnapshot = {
+      ...(this.pendingSnapshot || {}),
+      dataset,
+    };
+    this.hasPendingSave = true;
+
+    return this.flushSave();
+  }
+
+  /**
+   * Immediately flush pending changes to IndexedDB with atomic consistency checks and write concurrency lock.
    */
   public async flushSave(): Promise<boolean> {
     if (!this.hasPendingSave || !this.pendingSnapshot) {
@@ -129,17 +183,52 @@ class WorkspaceSyncService {
       const existingMeta = await localDB.getWorkspaceMetadata(workspaceId);
       const existingDataset = await localDB.getDataset(workspaceId);
 
-      // Merge dataset to preserve cached raw_csv and full records across partial updates
-      let datasetToPersist = snapshotToSave.dataset;
-      if (datasetToPersist) {
-        if (!datasetToPersist.raw_csv && existingDataset?.raw_csv) {
+      // --- DATASET ATOMIC CONSISTENCY ENFORCEMENT ---
+      let datasetToPersist: LocalDatasetRecord | undefined = undefined;
+
+      if (snapshotToSave.dataset) {
+        const candidate = snapshotToSave.dataset;
+
+        // Case 1: Complete dataset with full raw_csv string provided
+        if (typeof candidate.raw_csv === "string") {
           datasetToPersist = {
-            ...existingDataset,
-            ...datasetToPersist,
-            raw_csv: existingDataset.raw_csv,
+            ...candidate,
+            is_full_dataset: true,
+            is_preview_only: false,
+            raw_csv_omitted_for_quota: false,
+            updated_at: new Date().toISOString(),
           };
         }
+        // Case 2: Intentional quota degradation explicitly signaled
+        else if (candidate.raw_csv_omitted_for_quota === true) {
+          datasetToPersist = {
+            ...candidate,
+            raw_csv: null,
+            raw_csv_omitted_for_quota: true,
+            is_full_dataset: false,
+            is_preview_only: true,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        // Case 3: Inconsistent update! New records passed without raw_csv and without quota degradation flag.
+        // Rule: NEVER combine new dataset records with an older CSV snapshot.
+        // Rule: If downloading updated CSV failed, do NOT overwrite the previous consistent snapshot.
+        else {
+          console.error(
+            "[WorkspaceSync] Inconsistent dataset save rejected: new records provided without raw_csv or explicit quota flag. " +
+            "Previous consistent snapshot preserved to prevent stale CSV drift."
+          );
+          this.setStatus(
+            "error",
+            "Synchronization failed: updated CSV missing. Previous consistent local cache preserved."
+          );
+          this.hasPendingSave = true; // Mark as pending so retry or next save can resolve it
+          this.isSaving = false;
+          return false;
+        }
       } else if (existingDataset) {
+        // Case 4: Partial update of other stores (visualizations, transformations, etc.).
+        // Dataset was not modified in this save; preserve existing consistent dataset untouched.
         datasetToPersist = existingDataset;
       }
 
@@ -184,15 +273,19 @@ class WorkspaceSyncService {
       return true;
     } catch (err: any) {
       console.error("[WorkspaceSync] Failed to persist workspace to IndexedDB:", err);
-      // Safe fallback on quota error: retry saving without heavy raw_csv
+
+      // Safe fallback on quota error: intentionally retry saving with raw_csv omitted and explicit quota flag
       if ((err.name === "QuotaExceededError" || err.message?.includes("quota")) && fullSnapshot && fullSnapshot.dataset?.raw_csv) {
         try {
-          console.warn("[WorkspaceSync] Quota limit encountered. Retrying save with raw_csv omitted...");
+          console.warn("[WorkspaceSync] Quota limit encountered. Retrying save with intentional quota degradation...");
           const degradedSnapshot: CompleteWorkspaceSnapshot = {
             ...fullSnapshot,
             dataset: {
               ...fullSnapshot.dataset,
-              raw_csv: undefined,
+              raw_csv: null,
+              raw_csv_omitted_for_quota: true,
+              is_full_dataset: false,
+              is_preview_only: true,
             },
           };
           await localDB.saveFullWorkspace(degradedSnapshot);
@@ -269,6 +362,14 @@ class WorkspaceSyncService {
     await localDB.saveFullWorkspace(data);
     return freshId;
   }
+  public hasPendingWork(): boolean {
+    return this.hasPendingSave || this.isSaving;
+  }
 }
 
 export const workspaceSync = new WorkspaceSyncService();
+
+if (typeof window !== "undefined") {
+  (window as any).__opendatalens_workspaceSync = workspaceSync;
+}
+

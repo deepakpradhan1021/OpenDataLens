@@ -36,7 +36,8 @@ export interface LocalDatasetRecord {
   total_rows: number;
   total_cols: number;
   memory_mb: number;
-  raw_csv?: string;
+  raw_csv?: string | null;
+  raw_csv_omitted_for_quota?: boolean;
   is_full_dataset?: boolean;
   is_preview_only?: boolean;
   updated_at: string;
@@ -485,3 +486,8 @@ class IndexedDBStorageService {
 }
 
 export const localDB = new IndexedDBStorageService();
+
+if (typeof window !== "undefined") {
+  (window as any).__opendatalens_localDB = localDB;
+}
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -128,6 +128,12 @@ export default function QualityPage() {
   const [checkpointLoading, setCheckpointLoading] = useState(false);
   const [activeHistoryTab, setActiveHistoryTab] = useState<"history" | "checkpoints">("history");
 
+  const checkpointsRef = useRef<NamedCheckpointItem[]>([]);
+  checkpointsRef.current = checkpoints;
+
+  const historyItemsRef = useRef<HistoryItem[]>([]);
+  historyItemsRef.current = historyItems;
+
   const refreshHistory = useCallback(async () => {
     try {
       const res = await api.getCleanHistory();
@@ -136,7 +142,7 @@ export default function QualityPage() {
       setHistoryItems(res.history);
 
       const cpMap: Record<string, any> = {};
-      checkpoints.forEach((cp) => {
+      checkpointsRef.current.forEach((cp) => {
         cpMap[cp.name] = {
           timestamp: cp.timestamp,
           rows: cp.rows,
@@ -163,7 +169,7 @@ export default function QualityPage() {
     } catch {
       // Non-blocking
     }
-  }, [checkpoints]);
+  }, []);
 
   const refreshCheckpoints = useCallback(async () => {
     try {
@@ -183,7 +189,7 @@ export default function QualityPage() {
       workspaceSync.queueAutoSave({
         transformations: {
           workspace_id: getWorkspaceId(),
-          history: (historyItems || []).map((h: any, idx: number) => ({
+          history: (historyItemsRef.current || []).map((h: any, idx: number) => ({
             step: h.step ?? idx,
             action: h.action || "Transformation",
             timestamp: typeof h.timestamp === "number" ? h.timestamp : Date.now(),
@@ -191,14 +197,14 @@ export default function QualityPage() {
             cols: h.cols ?? 0,
           })),
           named_checkpoints: cpMap,
-          last_action: historyItems?.[historyItems.length - 1]?.action || null,
+          last_action: historyItemsRef.current?.[historyItemsRef.current.length - 1]?.action || null,
           updated_at: new Date().toISOString(),
         },
       });
     } catch {
       // Non-blocking
     }
-  }, [historyItems]);
+  }, []);
 
   const fetchQuality = useCallback(async () => {
     setLoading(true);
@@ -209,19 +215,25 @@ export default function QualityPage() {
       setIsOfflineMode(false);
       const cols = Object.keys(q.missing_summary);
       if (cols.length > 0) {
-        if (!selectedCol || !cols.includes(selectedCol)) {
-          setSelectedCol(cols[0]);
-        }
-        if (!imputeCol) setImputeCol(cols[0]);
-        if (!typeCol) setTypeCol(cols[0]);
-        if (!outlierCol) setOutlierCol(q.column_types.numeric[0] || cols[0]);
-        if (!sortCol) setSortCol(cols[0]);
-        if (!normalizeCol) setNormalizeCol(q.column_types.numeric[0] || cols[0]);
-        if (!dropCol) setDropCol(cols[0]);
-        if (!filterCol) setFilterCol(cols[0]);
+        setSelectedCol((prev) => (prev && cols.includes(prev) ? prev : cols[0]));
+        setImputeCol((prev) => prev || cols[0]);
+        setTypeCol((prev) => prev || cols[0]);
+        setOutlierCol((prev) => prev || q.column_types.numeric[0] || cols[0]);
+        setSortCol((prev) => prev || cols[0]);
+        setNormalizeCol((prev) => prev || q.column_types.numeric[0] || cols[0]);
+        setDropCol((prev) => prev || cols[0]);
+        setFilterCol((prev) => prev || cols[0]);
       }
       refreshHistory();
       refreshCheckpoints();
+
+      workspaceSync.queueAutoSave({
+        analysis_history: {
+          workspace_id: getWorkspaceId(),
+          quality_overview: q as any,
+          updated_at: new Date().toISOString(),
+        },
+      });
     } catch (e: any) {
       console.error(e);
       // Attempt to restore cached quality & transformation state from IndexedDB
@@ -247,6 +259,44 @@ export default function QualityPage() {
             setQuality(restored.analysisHistory.quality_overview as any);
             setIsOfflineMode(true);
             return;
+          } else if (restored.dataset && restored.dataset.columns) {
+            const cols = restored.dataset.columns;
+            const numCols = cols.filter(c => c.dtype.includes("int") || c.dtype.includes("float")).map(c => c.name);
+            const catCols = cols.filter(c => !numCols.includes(c.name)).map(c => c.name);
+            const missingSummary: Record<string, any> = {};
+            let totalMissing = 0;
+            cols.forEach(c => {
+              missingSummary[c.name] = {
+                missing_count: c.null_count || 0,
+                missing_pct: c.null_count && restored.dataset ? (c.null_count / (restored.dataset.total_rows || 1)) * 100 : 0,
+                dtype: c.dtype,
+                unique_count: c.unique_count || 0,
+              };
+              totalMissing += c.null_count || 0;
+            });
+            const totalCells = (restored.dataset.total_rows || 1) * cols.length;
+            const completenessScore = totalCells > 0 ? ((totalCells - totalMissing) / totalCells) * 100 : 100;
+            setQuality({
+              overview: {
+                total_rows: restored.dataset.total_rows || 0,
+                total_cols: cols.length,
+                missing_cells: totalMissing,
+                missing_pct: totalCells > 0 ? (totalMissing / totalCells) * 100 : 0,
+                duplicate_rows: 0,
+                duplicate_pct: 0,
+                completeness_score: completenessScore,
+                memory_mb: restored.dataset.memory_mb || 0,
+              },
+              missing_summary: missingSummary,
+              column_types: { numeric: numCols, categorical: catCols, datetime: [], text: [] },
+              outlier_summary: {},
+              high_cardinality: [],
+              high_correlation_pairs: [],
+              correlation_matrix: null,
+              recommendations: [],
+            } as any);
+            setIsOfflineMode(true);
+            return;
           } else if (restored.dataset) {
             setIsOfflineMode(true);
           }
@@ -266,7 +316,7 @@ export default function QualityPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCol, imputeCol, typeCol, outlierCol, sortCol, normalizeCol, dropCol, filterCol, refreshHistory, refreshCheckpoints]);
+  }, [refreshHistory, refreshCheckpoints]);
 
   useEffect(() => {
     fetchQuality();
@@ -296,33 +346,55 @@ export default function QualityPage() {
     }
   }, [selectedCol]);
 
-  const syncCommittedDataset = async () => {
-    try {
-      const [activeDs, fullCsv] = await Promise.all([
-        api.getActiveDataset(),
-        api.downloadDatasetCsvText().catch((e) => {
-          console.warn("Could not download updated CSV text:", e);
-          return undefined;
-        }),
-      ]);
-      if (activeDs) {
-        workspaceSync.queueAutoSave({
-          dataset: {
-            workspace_id: getWorkspaceId(),
-            metadata: activeDs.metadata,
-            columns: activeDs.columns,
-            records: activeDs.records,
-            total_rows: activeDs.total_rows,
-            total_cols: activeDs.total_cols,
-            memory_mb: activeDs.memory_mb,
-            raw_csv: fullCsv,
-            updated_at: new Date().toISOString(),
-          },
+  const syncCommittedDataset = async (maxRetries: number = 2): Promise<boolean> => {
+    let lastError: any = null;
+    workspaceSync.setStatus("saving", "Synchronizing transformed dataset to local storage...");
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const [activeDs, fullCsv] = await Promise.all([
+          api.getActiveDataset(),
+          api.downloadDatasetCsvText(),
+        ]);
+
+        if (!activeDs || typeof fullCsv !== "string") {
+          throw new Error("Invalid or empty dataset response from backend.");
+        }
+
+        // Commit full consistent snapshot atomically
+        const saved = await workspaceSync.saveDatasetSnapshotImmediately({
+          workspace_id: getWorkspaceId(),
+          metadata: activeDs.metadata,
+          columns: activeDs.columns,
+          records: activeDs.records,
+          total_rows: activeDs.total_rows,
+          total_cols: activeDs.total_cols,
+          memory_mb: activeDs.memory_mb,
+          raw_csv: fullCsv,
+          raw_csv_omitted_for_quota: false,
+          is_full_dataset: true,
+          is_preview_only: false,
+          updated_at: new Date().toISOString(),
         });
+
+        if (saved) {
+          return true;
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[Quality] syncCommittedDataset attempt ${attempt} failed:`, err);
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 600));
+        }
       }
-    } catch (syncErr) {
-      console.warn("Failed to sync committed dataset to IndexedDB:", syncErr);
     }
+
+    console.error("[Quality] Failed to synchronize committed dataset after retries:", lastError);
+    workspaceSync.setStatus(
+      "error",
+      "Failed to synchronize full dataset CSV. Local offline cache was not updated."
+    );
+    return false;
   };
 
   const handleApplyCleanAction = async (actionType: string, params: Record<string, any>) => {
@@ -335,7 +407,10 @@ export default function QualityPage() {
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       await fetchQuality();
-      syncCommittedDataset();
+      const synced = await syncCommittedDataset();
+      if (!synced) {
+        setCleaningError("Transformation applied, but local offline synchronization failed. Changes are not saved locally.");
+      }
     } catch (e: any) {
       console.error(e);
       const cat = categorizeApiError(e);
@@ -356,7 +431,10 @@ export default function QualityPage() {
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       await fetchQuality();
-      syncCommittedDataset();
+      const synced = await syncCommittedDataset();
+      if (!synced) {
+        setCleaningError("Undo applied, but local offline synchronization failed. Changes are not saved locally.");
+      }
     } catch (e: any) {
       console.error(e);
       setCleaningError(e.response?.data?.detail || "Failed to undo transformation.");
@@ -376,7 +454,10 @@ export default function QualityPage() {
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       await fetchQuality();
-      syncCommittedDataset();
+      const synced = await syncCommittedDataset();
+      if (!synced) {
+        setCleaningError("Redo applied, but local offline synchronization failed. Changes are not saved locally.");
+      }
     } catch (e: any) {
       console.error(e);
       setCleaningError(e.response?.data?.detail || "Failed to redo transformation.");
@@ -438,7 +519,10 @@ export default function QualityPage() {
       setCanRedo(res.can_redo);
       await fetchQuality();
       await refreshCheckpoints();
-      syncCommittedDataset();
+      const synced = await syncCommittedDataset();
+      if (!synced) {
+        setCleaningError("Checkpoint restored, but local offline synchronization failed. Changes are not saved locally.");
+      }
     } catch (e: any) {
       console.error(e);
       const cat = categorizeApiError(e);

@@ -168,7 +168,31 @@ export async function loadActiveWorkspace(workspaceId?: string): Promise<Restore
   const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
 
   try {
-    const full = await localDB.getFullWorkspace(sid);
+    let full = await localDB.getFullWorkspace(sid);
+    if (!full || !full.dataset) {
+      // 1. Try stripping HMAC signature if sid was signed
+      if (sid.includes(".")) {
+        const rawSid = sid.split(".")[0];
+        full = await localDB.getFullWorkspace(rawSid);
+      }
+      // 2. Try looking up signed workspace if sid was raw
+      if (!full || !full.dataset) {
+        try {
+          const allMetas = await localDB.listWorkspaces();
+          const matchingMeta = allMetas.find(
+            (m) => m.id === sid || m.id.startsWith(sid + ".") || sid.startsWith(m.id + ".")
+          );
+          if (matchingMeta) {
+            full = await localDB.getFullWorkspace(matchingMeta.id);
+          } else if (allMetas.length === 1) {
+            full = await localDB.getFullWorkspace(allMetas[0].id);
+          }
+        } catch {
+          // ignore lookup errors
+        }
+      }
+    }
+
     if (!full || !full.dataset) {
       return {
         isOffline,
@@ -189,8 +213,14 @@ export async function loadActiveWorkspace(workspaceId?: string): Promise<Restore
     let isPreviewOnly = true;
     let noticeMessage = "Preview-only workspace restored from local cache (sample preview rows only).";
 
-    // If raw_csv is cached in IndexedDB, parse the full dataset into records
-    if (full.dataset.raw_csv && full.dataset.raw_csv.trim().length > 0) {
+    // 1. Explicit intentional quota degradation
+    if (full.dataset.raw_csv_omitted_for_quota) {
+      isFullDataset = false;
+      isPreviewOnly = true;
+      noticeMessage = "Preview-only workspace restored from local cache (full raw CSV omitted due to storage quota).";
+    }
+    // 2. Full raw_csv is cached in IndexedDB: parse the full dataset into records
+    else if (full.dataset.raw_csv && typeof full.dataset.raw_csv === "string" && full.dataset.raw_csv.trim().length > 0) {
       try {
         const parsed = parseCsvToRecords(full.dataset.raw_csv);
         if (parsed.records.length > 0) {
@@ -199,12 +229,21 @@ export async function loadActiveWorkspace(workspaceId?: string): Promise<Restore
           isFullDataset = true;
           isPreviewOnly = false;
           noticeMessage = `Full dataset restored from local browser cache (${parsed.rowCount.toLocaleString()} rows). Offline analytics active.`;
+        } else {
+          isFullDataset = false;
+          isPreviewOnly = true;
+          noticeMessage = "Cached raw CSV was empty or unparseable. Falling back to preview rows.";
         }
       } catch (parseErr) {
         console.warn("[WorkspaceRestore] Could not parse raw_csv, falling back to preview rows:", parseErr);
+        isFullDataset = false;
+        isPreviewOnly = true;
+        noticeMessage = "Dataset parsing error on cached raw CSV. Falling back to preview rows.";
       }
     } else {
-      noticeMessage = "Preview-only workspace restored from local cache (full raw CSV omitted due to storage quota).";
+      isFullDataset = false;
+      isPreviewOnly = true;
+      noticeMessage = "Preview-only workspace restored from local cache (sample preview rows only).";
     }
 
     full.dataset.is_full_dataset = isFullDataset;
