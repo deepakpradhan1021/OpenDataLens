@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.api.routes import health, datasets, quality, ml, evaluation, reports, drift, copilot, projects, share, sessions
+from backend.api.security import verify_session_token, is_valid_raw_session_id, sign_session_id
 
 app = FastAPI(
     title="OpenDataLens SaaS API",
@@ -78,6 +79,19 @@ app.add_middleware(
     ],
     expose_headers=["X-Session-ID", "X-Session-Created", "Retry-After"]
 )
+
+# Guest Session Identity Signing Middleware
+@app.middleware("http")
+async def guest_session_signature_middleware(request: Request, call_next):
+    raw_header = request.headers.get("x-session-id") or request.headers.get("X-Session-ID")
+    response = await call_next(request)
+    if raw_header and "X-Session-ID" not in response.headers:
+        is_valid, _ = verify_session_token(raw_header, strict=True)
+        if is_valid:
+            response.headers["X-Session-ID"] = raw_header
+        elif is_valid_raw_session_id(raw_header):
+            response.headers["X-Session-ID"] = sign_session_id(raw_header)
+    return response
 
 # Global Exception Handler with Sanitized Production Responses
 @app.exception_handler(Exception)

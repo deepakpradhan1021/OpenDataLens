@@ -5,12 +5,14 @@ experience while preventing session impersonation and arbitrary client ID forger
 """
 
 from typing import Optional
+import time
 from fastapi import APIRouter, Header, Response, status
 from pydantic import BaseModel, Field
 
 from backend.api.security import (
     generate_server_session,
     verify_session_token,
+    is_valid_raw_session_id,
     sign_session_id
 )
 
@@ -51,6 +53,17 @@ def initialize_guest_session(
                 session_token=x_session_id,
                 session_id=raw_id,
                 created_at=0.0,
+                expires_in=7200
+            )
+        elif is_valid_raw_session_id(x_session_id):
+            # Client provided a valid raw UUID; sign it to preserve session identity
+            signed_token = sign_session_id(x_session_id)
+            response.headers["X-Session-ID"] = signed_token
+            response.headers["X-Session-Created"] = "true"
+            return SessionInitResponse(
+                session_token=signed_token,
+                session_id=x_session_id.strip(),
+                created_at=time.time(),
                 expires_in=7200
             )
 
