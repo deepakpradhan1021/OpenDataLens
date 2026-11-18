@@ -336,3 +336,41 @@ def test_no_api_keys_or_internal_secrets_leaked():
     # Must only disclose provider name ("local_rule_based" or "openai_compatible"), NEVER api_key
     assert "api_key" not in c_data
     assert "secret" not in str(c_data).lower()
+
+
+def test_training_job_status_signed_session_ownership():
+    """Verify that a training job initiated under a signed session can be polled using the signed token."""
+    sess = generate_server_session()
+    token = sess["session_token"]
+
+    # Mount Iris
+    load_res = client.post("/api/datasets/load-curated", json={"dataset_id": "iris", "session_id": token})
+    assert load_res.status_code == 200
+
+    # Start training
+    train_res = client.post(
+        "/api/ml/train",
+        json={
+            "session_id": token,
+            "problem_type": "classification",
+            "target_col": "target",
+            "feature_cols": ["sepal length (cm)", "sepal width (cm)"],
+            "selected_models": ["logistic_regression"],
+            "scaler_type": "standard",
+            "test_size": 0.2,
+            "random_state": 42,
+            "cv_folds": 3
+        }
+    )
+    assert train_res.status_code == 200
+    job_id = train_res.json()["job_id"]
+
+    # Poll status using signed token header (must be 200 OK, not 403 Forbidden)
+    status_res = client.get(f"/api/ml/train/status/{job_id}", headers={"X-Session-ID": token})
+    assert status_res.status_code == 200
+    assert status_res.json()["job_id"] == job_id
+
+    # Poll status using a DIFFERENT signed session (must be 403 Forbidden)
+    other_sess = generate_server_session()
+    forbidden_res = client.get(f"/api/ml/train/status/{job_id}", headers={"X-Session-ID": other_sess["session_token"]})
+    assert forbidden_res.status_code == 403

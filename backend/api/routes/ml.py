@@ -286,7 +286,11 @@ def get_job_status(
     # Check job ownership using caller workspace ID from query or header
     caller_session = session_id or request.headers.get("X-Session-ID")
     if caller_session and caller_session.strip() != "default" and job["session_id"] != "default":
-        if caller_session.strip() != job["session_id"]:
+        try:
+            caller_canonical = store._resolve_session_key(caller_session)
+        except ValueError:
+            caller_canonical = caller_session.strip()
+        if caller_canonical != job["session_id"]:
             raise HTTPException(
                 status_code=403,
                 detail="Access denied: Training job belongs to another workspace session."
