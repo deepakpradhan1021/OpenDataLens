@@ -19,10 +19,14 @@ import {
   RefreshCw,
   Loader2,
   PieChart,
+  FolderArchive,
+  Shield,
 } from "lucide-react";
 import { Ring } from "@/components/loading-ui/ring";
 import { api, getWorkspaceId, subscribeColdStart } from "@/lib/api";
 import { ThemeToggle } from "./theme-toggle";
+import { SaveStatusIndicator } from "./save-status-indicator";
+import { WorkspaceModal } from "./workspace-modal";
 
 const NAV_ITEMS = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -43,6 +47,7 @@ export function Navigation() {
   const [workspaceId, setWorkspaceId] = useState<string>("");
   const [clearing, setClearing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
 
   const refreshActiveDataset = useCallback(() => {
     api.getActiveDataset()
@@ -222,6 +227,19 @@ export function Navigation() {
             </span>
           </button>
 
+          {/* Save Status Indicator */}
+          <SaveStatusIndicator onOpenWorkspaces={() => setWorkspaceModalOpen(true)} />
+
+          {/* Workspaces Manager Button */}
+          <button
+            onClick={() => setWorkspaceModalOpen(true)}
+            className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-border hover:border-border/80 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-medium whitespace-nowrap shrink-0 transition-colors"
+            title="Manage persistent browser workspaces"
+          >
+            <FolderArchive className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>Workspaces</span>
+          </button>
+
           {/* Active Dataset Pill */}
           {activeDatasetName && (
             <Link
@@ -236,6 +254,17 @@ export function Navigation() {
 
           {/* Theme Toggle */}
           <ThemeToggle />
+
+          {/* Admin Telemetry Portal Link */}
+          <Link
+            href="/admin"
+            className={`p-2 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-medium transition-colors ${
+              pathname === "/admin" ? "bg-muted text-emerald-500 border-emerald-500/30" : ""
+            }`}
+            title="Admin Telemetry Portal"
+          >
+            <Shield className="w-3.5 h-3.5" />
+          </Link>
 
           {/* Clear Workspace Button */}
           <button
@@ -344,7 +373,18 @@ export function Navigation() {
             })}
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 space-y-2">
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setWorkspaceModalOpen(true);
+              }}
+              className="w-full flex items-center justify-center space-x-1.5 p-2 rounded-lg border border-border bg-muted/40 text-muted-foreground hover:text-foreground text-xs font-medium transition-colors"
+            >
+              <FolderArchive className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>Manage Saved Workspaces</span>
+            </button>
+
             <Link
               href="/studio"
               onClick={() => setMobileMenuOpen(false)}
@@ -356,6 +396,13 @@ export function Navigation() {
           </div>
         </div>
       )}
+
+      {/* Workspace Management Modal */}
+      <WorkspaceModal
+        isOpen={workspaceModalOpen}
+        onClose={() => setWorkspaceModalOpen(false)}
+        onWorkspaceRestored={refreshActiveDataset}
+      />
 
       {/* Render Free-Tier Cold Start Banner */}
       {coldStartNotice && (

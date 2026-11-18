@@ -14,6 +14,10 @@ class HealthResponse(BaseModel):
     timestamp: Optional[str] = None
     uptime_seconds: Optional[float] = None
     active_sessions: Optional[int] = None
+    memory_rss_mb: Optional[float] = None
+    memory_status: Optional[str] = None
+    requests_total: Optional[int] = None
+    active_jobs: Optional[int] = None
 
 
 # Dataset Schemas

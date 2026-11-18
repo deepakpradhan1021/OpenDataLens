@@ -29,6 +29,7 @@ import { api, categorizeApiError } from "@/lib/api";
 import { CuratedDatasetItem, HFDatasetCard, DatasetPreviewResponse } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
 import { FilterState } from "@/components/retro-filter-drawer";
+import { workspaceSync } from "@/lib/workspace-sync";
 
 export default function ExplorerPage() {
   const [activeTab, setActiveTab] = useState<"curated" | "hf" | "csv">("curated");
@@ -63,7 +64,23 @@ export default function ExplorerPage() {
 
   useEffect(() => {
     api.getCuratedDatasets().then(setCuratedList).catch(console.error);
-    api.getActiveDataset().then(setActiveDataset).catch(() => null);
+    api.getActiveDataset().then((data) => {
+      setActiveDataset(data);
+      if (data) {
+        workspaceSync.queueAutoSave({
+          dataset: {
+            workspace_id: data.session_id,
+            metadata: data.metadata,
+            columns: data.columns,
+            records: data.records,
+            total_rows: data.total_rows,
+            total_cols: data.total_cols,
+            memory_mb: data.memory_mb,
+            updated_at: new Date().toISOString(),
+          },
+        });
+      }
+    }).catch(() => null);
   }, []);
 
   const handleLoadCurated = async (id: string) => {
@@ -73,6 +90,18 @@ export default function ExplorerPage() {
     try {
       const data = await api.loadCuratedDataset(id);
       setActiveDataset(data);
+      workspaceSync.queueAutoSave({
+        dataset: {
+          workspace_id: data.session_id,
+          metadata: data.metadata,
+          columns: data.columns,
+          records: data.records,
+          total_rows: data.total_rows,
+          total_cols: data.total_cols,
+          memory_mb: data.memory_mb,
+          updated_at: new Date().toISOString(),
+        },
+      });
       setSuccessMsg(`Benchmark '${data.metadata.name}' loaded successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
     } catch (err: any) {
       const cat = categorizeApiError(err);
@@ -120,6 +149,18 @@ export default function ExplorerPage() {
     try {
       const data = await api.loadHFDataset(datasetName, "train", 2000);
       setActiveDataset(data);
+      workspaceSync.queueAutoSave({
+        dataset: {
+          workspace_id: data.session_id,
+          metadata: data.metadata,
+          columns: data.columns,
+          records: data.records,
+          total_rows: data.total_rows,
+          total_cols: data.total_cols,
+          memory_mb: data.memory_mb,
+          updated_at: new Date().toISOString(),
+        },
+      });
       setSuccessMsg(`Streamed '${datasetName}' via HF Dataset API (${data.total_rows.toLocaleString()} rows).`);
     } catch (err: any) {
       const cat = categorizeApiError(err);
@@ -185,6 +226,18 @@ export default function ExplorerPage() {
       setUploadProgress(100);
       setUploadStage("Audit complete!");
       setActiveDataset(data);
+      workspaceSync.queueAutoSave({
+        dataset: {
+          workspace_id: data.session_id,
+          metadata: data.metadata,
+          columns: data.columns,
+          records: data.records,
+          total_rows: data.total_rows,
+          total_cols: data.total_cols,
+          memory_mb: data.memory_mb,
+          updated_at: new Date().toISOString(),
+        },
+      });
       const displayExt = ext.replace(".", "").toUpperCase();
       setSuccessMsg(
         `Parsed ${displayExt} '${file.name}' successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`

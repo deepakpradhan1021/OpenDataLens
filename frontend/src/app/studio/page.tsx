@@ -18,9 +18,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Ring } from "@/components/loading-ui/ring";
-import { api, categorizeApiError } from "@/lib/api";
+import { api, categorizeApiError, getWorkspaceId } from "@/lib/api";
 import { TargetCandidatesResponse, JobStatusResponse } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
+import { workspaceSync } from "@/lib/workspace-sync";
 
 const CLASSIFICATION_MODELS = [
   { id: "logistic_regression", name: "Logistic Regression", desc: "Linear baseline with L2 penalty", default: true },
@@ -167,6 +168,20 @@ export default function StudioPage() {
           if (status.status === "completed") {
             clearInterval(interval);
             setIsTraining(false);
+            workspaceSync.queueAutoSave({
+              model_results: {
+                workspace_id: getWorkspaceId(),
+                problem_type: problemType,
+                target_col: targetCol,
+                feature_cols: featureCols,
+                leaderboard: (status.completed_models || []).map((modelName: string) => ({
+                  model_name: modelName,
+                  metrics: {},
+                  fit_time: 0,
+                })),
+                updated_at: new Date().toISOString(),
+              },
+            });
             setTimeout(() => {
               router.push("/comparison");
             }, 1000);

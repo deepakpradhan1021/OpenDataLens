@@ -853,4 +853,30 @@ export const api = {
     });
     return data;
   },
+
+  // Production Telemetry & Admin (Phase 7.2)
+  verifyAdminKey: async (adminKey: string): Promise<{ status: string; message: string }> => {
+    const { data } = await apiClient.get("/admin/verify", {
+      headers: { "X-Admin-Key": adminKey },
+    });
+    return data;
+  },
+
+  getAdminTelemetry: async (adminKey: string): Promise<any> => {
+    const { data } = await apiClient.get("/admin/telemetry", {
+      headers: { "X-Admin-Key": adminKey },
+    });
+    return data;
+  },
+
+  resetAdminMetrics: async (adminKey: string): Promise<{ status: string; message: string }> => {
+    const { data } = await apiClient.post(
+      "/admin/metrics/reset",
+      {},
+      {
+        headers: { "X-Admin-Key": adminKey },
+      }
+    );
+    return data;
+  },
 };

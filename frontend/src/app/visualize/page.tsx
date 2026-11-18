@@ -47,9 +47,10 @@ import {
   Legend,
 } from "recharts";
 import { Ring } from "@/components/loading-ui/ring";
-import { api, categorizeApiError } from "@/lib/api";
+import { api, categorizeApiError, getWorkspaceId } from "@/lib/api";
 import { DatasetPreviewResponse, ChartDataResponse, ChartDataInsights, ChartDataItem } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
+import { workspaceSync } from "@/lib/workspace-sync";
 
 const PALETTE = [
   "#10B981", // Emerald
@@ -221,6 +222,21 @@ export default function VisualizePage() {
         });
         if (!cancelled) {
           setServerChartResponse(resp);
+          workspaceSync.queueAutoSave({
+            visualizations: {
+              workspace_id: getWorkspaceId(),
+              active_chart_type: chartType,
+              x_axis_col: xAxisCol,
+              y_axis_col: yAxisCol || "",
+              aggregation: aggregation,
+              bins: bins,
+              bin_numeric: binNumeric,
+              sort_by: sortBy,
+              top_n: topN,
+              saved_presets: [],
+              updated_at: new Date().toISOString(),
+            },
+          });
         }
       } catch (err) {
         console.warn("Server chart calculation failed, using client-side fallback", err);
@@ -248,6 +264,8 @@ export default function VisualizePage() {
     sortBy,
     excludeNulls,
     minThreshold,
+    showGrid,
+    showLegend,
   ]);
 
   // Aggregated Chart Data Computation (Client Fallback)

@@ -48,7 +48,7 @@ import {
   CartesianGrid,
   Cell,
 } from "recharts";
-import { api, categorizeApiError } from "@/lib/api";
+import { api, categorizeApiError, getWorkspaceId } from "@/lib/api";
 import {
   QualityAnalysisResponse,
   CopilotResponse,
@@ -58,6 +58,7 @@ import {
   NamedCheckpointItem,
 } from "@/lib/types";
 import { RetroDock } from "@/components/retro-dock";
+import { workspaceSync } from "@/lib/workspace-sync";
 
 export default function QualityPage() {
   const [quality, setQuality] = useState<QualityAnalysisResponse | null>(null);
@@ -131,6 +132,21 @@ export default function QualityPage() {
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       setHistoryItems(res.history);
+      workspaceSync.queueAutoSave({
+        transformations: {
+          workspace_id: getWorkspaceId(),
+          history: (res.history || []).map((h: any, idx: number) => ({
+            step: h.step ?? idx,
+            action: h.action || "Transformation",
+            timestamp: typeof h.timestamp === "number" ? h.timestamp : Date.now(),
+            rows: h.rows ?? 0,
+            cols: h.cols ?? 0,
+          })),
+          named_checkpoints: {},
+          last_action: res.history?.[res.history.length - 1]?.action || null,
+          updated_at: new Date().toISOString(),
+        },
+      });
     } catch {
       // Non-blocking
     }
@@ -345,6 +361,25 @@ export default function QualityPage() {
     try {
       const res = await api.queryCopilot(qText);
       setCopilotResponse(res);
+      workspaceSync.queueAutoSave({
+        analysis_history: {
+          workspace_id: getWorkspaceId(),
+          copilot_history: [
+            {
+              role: "user",
+              content: qText,
+              timestamp: new Date().toISOString(),
+            },
+            {
+              role: "assistant",
+              content: res.answer || "Copilot response",
+              timestamp: new Date().toISOString(),
+              insights: res as any,
+            },
+          ],
+          updated_at: new Date().toISOString(),
+        },
+      });
       setCopilotQuery("");
     } catch (e: any) {
       console.error(e);

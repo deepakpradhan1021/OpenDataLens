@@ -18,12 +18,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("OpenDataLens")
 
+import re
+import uuid
+import time
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api.routes import health, datasets, quality, ml, evaluation, reports, drift, copilot, projects, share, sessions
+from backend.api.routes import health, datasets, quality, ml, evaluation, reports, drift, copilot, projects, share, sessions, admin
 from backend.api.security import verify_session_token, is_valid_raw_session_id, sign_session_id
+from core.telemetry import telemetry_collector
 
 app = FastAPI(
     title="OpenDataLens SaaS API",
@@ -73,12 +77,40 @@ app.add_middleware(
         "Authorization",
         "X-Session-ID",
         "X-Share-Password",
+        "X-Admin-Key",
+        "X-Request-ID",
         "Accept",
         "Origin",
         "User-Agent"
     ],
-    expose_headers=["X-Session-ID", "X-Session-Created", "Retry-After"]
+    expose_headers=["X-Session-ID", "X-Session-Created", "X-Request-ID", "Retry-After"]
 )
+
+UUID_OR_HASH_REGEX = re.compile(r"/[a-f0-9-]{8,}(?=/|$)", re.IGNORECASE)
+
+# Lightweight Performance & Telemetry Instrumentation Middleware
+@app.middleware("http")
+async def telemetry_middleware(request: Request, call_next):
+    request_id = request.headers.get("x-request-id") or request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    start_time = time.perf_counter()
+
+    # Route template normalization to prevent cardinality explosion
+    raw_path = request.url.path
+    route_template = UUID_OR_HASH_REGEX.sub("/{id}", raw_path)
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception as exc:
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        telemetry_collector.record_request(route_template, 500, duration_ms)
+        raise exc
+
+    duration_ms = (time.perf_counter() - start_time) * 1000.0
+    telemetry_collector.record_request(route_template, status_code, duration_ms)
+
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 # Guest Session Identity Signing Middleware
 @app.middleware("http")
@@ -120,6 +152,25 @@ app.include_router(copilot.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(share.router, prefix="/api")
 app.include_router(sessions.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
+
+# Optional Observability Stubs (Dormant unless environment keys configured)
+SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            environment=ENVIRONMENT
+        )
+        logger.info("Sentry APM integration initialized successfully.")
+    except ImportError:
+        logger.warning("SENTRY_DSN configured but sentry-sdk package is not installed.")
+
+OTEL_EXPORTER_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+if OTEL_EXPORTER_ENDPOINT:
+    logger.info("OpenTelemetry exporter configured at %s (dormant stub)", OTEL_EXPORTER_ENDPOINT)
 
 
 @app.get("/")
