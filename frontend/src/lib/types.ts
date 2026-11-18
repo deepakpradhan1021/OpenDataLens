@@ -46,6 +46,9 @@ export interface DatasetPreviewResponse {
   memory_mb: number;
   columns: ColumnSchemaInfo[];
   records: Record<string, any>[];
+  is_full_dataset?: boolean;
+  is_preview_only?: boolean;
+  raw_csv?: string;
 }
 
 export interface QualityOverview {

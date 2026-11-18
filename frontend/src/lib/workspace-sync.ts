@@ -127,12 +127,26 @@ class WorkspaceSyncService {
     try {
       const workspaceId = getWorkspaceId();
       const existingMeta = await localDB.getWorkspaceMetadata(workspaceId);
+      const existingDataset = await localDB.getDataset(workspaceId);
 
-      const dataset = snapshotToSave.dataset;
-      const totalRows = dataset?.total_rows || existingMeta?.total_rows || 0;
-      const totalCols = dataset?.total_cols || existingMeta?.total_cols || 0;
-      const datasetName = dataset?.metadata?.name || existingMeta?.dataset_name || "Untitled Dataset";
-      const memoryMB = dataset?.memory_mb || existingMeta?.memory_mb || 0;
+      // Merge dataset to preserve cached raw_csv and full records across partial updates
+      let datasetToPersist = snapshotToSave.dataset;
+      if (datasetToPersist) {
+        if (!datasetToPersist.raw_csv && existingDataset?.raw_csv) {
+          datasetToPersist = {
+            ...existingDataset,
+            ...datasetToPersist,
+            raw_csv: existingDataset.raw_csv,
+          };
+        }
+      } else if (existingDataset) {
+        datasetToPersist = existingDataset;
+      }
+
+      const totalRows = datasetToPersist?.total_rows || existingMeta?.total_rows || 0;
+      const totalCols = datasetToPersist?.total_cols || existingMeta?.total_cols || 0;
+      const datasetName = datasetToPersist?.metadata?.name || existingMeta?.dataset_name || "Untitled Dataset";
+      const memoryMB = datasetToPersist?.memory_mb || existingMeta?.memory_mb || 0;
 
       const updatedMeta: LocalWorkspaceMetadata = {
         id: workspaceId,
@@ -151,7 +165,7 @@ class WorkspaceSyncService {
 
       fullSnapshot = {
         metadata: updatedMeta,
-        dataset: snapshotToSave.dataset,
+        dataset: datasetToPersist,
         transformations: snapshotToSave.transformations,
         visualizations: snapshotToSave.visualizations,
         analysis_history: snapshotToSave.analysis_history,

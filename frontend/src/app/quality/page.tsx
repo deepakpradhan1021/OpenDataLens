@@ -296,6 +296,35 @@ export default function QualityPage() {
     }
   }, [selectedCol]);
 
+  const syncCommittedDataset = async () => {
+    try {
+      const [activeDs, fullCsv] = await Promise.all([
+        api.getActiveDataset(),
+        api.downloadDatasetCsvText().catch((e) => {
+          console.warn("Could not download updated CSV text:", e);
+          return undefined;
+        }),
+      ]);
+      if (activeDs) {
+        workspaceSync.queueAutoSave({
+          dataset: {
+            workspace_id: getWorkspaceId(),
+            metadata: activeDs.metadata,
+            columns: activeDs.columns,
+            records: activeDs.records,
+            total_rows: activeDs.total_rows,
+            total_cols: activeDs.total_cols,
+            memory_mb: activeDs.memory_mb,
+            raw_csv: fullCsv,
+            updated_at: new Date().toISOString(),
+          },
+        });
+      }
+    } catch (syncErr) {
+      console.warn("Failed to sync committed dataset to IndexedDB:", syncErr);
+    }
+  };
+
   const handleApplyCleanAction = async (actionType: string, params: Record<string, any>) => {
     setCleaningLoading(true);
     setCleaningStatus(null);
@@ -306,6 +335,7 @@ export default function QualityPage() {
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       await fetchQuality();
+      syncCommittedDataset();
     } catch (e: any) {
       console.error(e);
       const cat = categorizeApiError(e);
@@ -326,6 +356,7 @@ export default function QualityPage() {
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       await fetchQuality();
+      syncCommittedDataset();
     } catch (e: any) {
       console.error(e);
       setCleaningError(e.response?.data?.detail || "Failed to undo transformation.");
@@ -345,6 +376,7 @@ export default function QualityPage() {
       setCanUndo(res.can_undo);
       setCanRedo(res.can_redo);
       await fetchQuality();
+      syncCommittedDataset();
     } catch (e: any) {
       console.error(e);
       setCleaningError(e.response?.data?.detail || "Failed to redo transformation.");
@@ -406,6 +438,7 @@ export default function QualityPage() {
       setCanRedo(res.can_redo);
       await fetchQuality();
       await refreshCheckpoints();
+      syncCommittedDataset();
     } catch (e: any) {
       console.error(e);
       const cat = categorizeApiError(e);

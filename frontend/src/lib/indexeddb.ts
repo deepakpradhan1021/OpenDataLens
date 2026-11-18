@@ -37,6 +37,8 @@ export interface LocalDatasetRecord {
   total_cols: number;
   memory_mb: number;
   raw_csv?: string;
+  is_full_dataset?: boolean;
+  is_preview_only?: boolean;
   updated_at: string;
 }
 

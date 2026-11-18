@@ -179,7 +179,9 @@ export default function VisualizePage() {
               total_rows: restored.dataset.total_rows,
               total_cols: restored.dataset.total_cols,
               memory_mb: restored.dataset.memory_mb,
-            });
+              is_full_dataset: restored.isFullDataset,
+              is_preview_only: restored.isPreviewOnly,
+            } as any);
             setIsOfflineMode(true);
             setError(null);
 
@@ -849,15 +851,30 @@ export default function VisualizePage() {
 
         {/* Offline Notification Banner */}
         {isOfflineMode && (
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between animate-in fade-in">
+          <div className={`p-3 rounded-xl text-xs flex items-center justify-between animate-in fade-in ${
+            dataset?.is_preview_only
+              ? "bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200"
+              : "bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200"
+          }`}>
             <div className="flex items-center space-x-2.5">
-              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              {dataset?.is_preview_only ? (
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              ) : (
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+              )}
               <span>
-                <strong>Offline / Local Mode:</strong> Dataset restored from browser IndexedDB. Charts rendered via local client engine; server-computed aggregations will resume when backend reconnects.
+                <strong>{dataset?.is_preview_only ? "Preview-Only Mode:" : "Full Offline Dataset Active:"}</strong>{" "}
+                {dataset?.is_preview_only
+                  ? `Restored preview records (${dataset?.records?.length || 0} sample rows). Full raw dataset was omitted due to local storage quota limit. Offline visualizations are computed on preview sample.`
+                  : `All ${(dataset?.total_rows ?? dataset?.records?.length ?? 0).toLocaleString()} rows restored from local browser cache. Offline chart calculations and aggregations are fully active.`}
               </span>
             </div>
-            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono text-[10px] uppercase font-bold shrink-0 ml-2">
-              LOCAL CACHE
+            <span className={`px-2 py-0.5 rounded font-mono text-[10px] uppercase font-bold shrink-0 ml-2 ${
+              dataset?.is_preview_only
+                ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                : "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+            }`}>
+              {dataset?.is_preview_only ? "PREVIEW ONLY" : "FULL DATASET (OFFLINE)"}
             </span>
           </div>
         )}

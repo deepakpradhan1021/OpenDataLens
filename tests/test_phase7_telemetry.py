@@ -327,6 +327,145 @@ def test_admin_reverse_proxy_rightmost_untrusted_resolution(monkeypatch):
     assert statuses[4:] == [429, 429, 429]
 
 
+def test_proxy_trusted_multi_hop_chain(monkeypatch):
+    """
+    Trusted proxy with a valid multi-hop chain:
+    Client (198.51.100.77) -> Proxy2 (172.16.0.2) -> Proxy1 (10.0.0.1) -> Backend.
+    With TRUSTED_PROXIES="10.0.0.0/8, 172.16.0.0/12", correctly identifies real client 198.51.100.77.
+    """
+    monkeypatch.setenv("OPENDATALENS_ADMIN_KEY", TEST_ADMIN_KEY)
+    monkeypatch.setenv("TRUSTED_PROXIES", "10.0.0.0/8, 172.16.0.0/12")
+    telemetry_collector.reset_admin_lockouts()
+
+    # Direct socket peer is Proxy1 (10.0.0.1)
+    proxy_client = TestClient(app, client=("10.0.0.1", 12345))
+
+    # X-Forwarded-For: client, proxy2
+    chain_header = "198.51.100.77, 172.16.0.2"
+    statuses = []
+    for _ in range(5):
+        resp = proxy_client.get(
+            "/api/admin/verify",
+            headers={"X-Admin-Key": "wrong_key", "X-Forwarded-For": chain_header}
+        )
+        statuses.append(resp.status_code)
+
+    telemetry_collector.reset_admin_lockouts()
+
+    # Client 198.51.100.77 gets locked out on 5th attempt
+    assert statuses == [401, 401, 401, 401, 429]
+
+
+def test_proxy_untrusted_private_network_peer_spoofing(monkeypatch):
+    """
+    Untrusted private-network peer (e.g. 10.0.0.5 or 192.168.1.50) attempts header spoofing
+    without being explicitly configured in TRUSTED_PROXIES.
+    RFC 1918 addresses are NOT trusted by default (fail-closed); socket IP is enforced, headers ignored.
+    """
+    monkeypatch.setenv("OPENDATALENS_ADMIN_KEY", TEST_ADMIN_KEY)
+    monkeypatch.delenv("TRUSTED_PROXIES", raising=False)
+    telemetry_collector.reset_admin_lockouts()
+
+    # Private network peer 10.0.0.5 connects directly
+    untrusted_private_client = TestClient(app, client=("10.0.0.5", 55555))
+
+    # Attempts to bypass rate limiting by rotating X-Forwarded-For
+    statuses = []
+    for i in range(7):
+        resp = untrusted_private_client.get(
+            "/api/admin/verify",
+            headers={"X-Admin-Key": "wrong_key", "X-Forwarded-For": f"203.0.113.{i}"}
+        )
+        statuses.append(resp.status_code)
+
+    telemetry_collector.reset_admin_lockouts()
+
+    # Socket IP 10.0.0.5 is enforced and locked out on attempt 5
+    assert statuses[:4] == [401, 401, 401, 401]
+    assert statuses[4:] == [429, 429, 429]
+
+
+def test_proxy_malformed_forwarded_headers(monkeypatch):
+    """
+    Malformed forwarded headers containing non-IP tokens or script injection attempts
+    must be safely rejected and fail closed to the socket peer.
+    """
+    monkeypatch.setenv("OPENDATALENS_ADMIN_KEY", TEST_ADMIN_KEY)
+    telemetry_collector.reset_admin_lockouts()
+
+    # Trusted proxy peer 127.0.0.1
+    proxy_client = TestClient(app, client=("127.0.0.1", 9999))
+
+    malformed_header = "not-an-ip, 999.999.999.999, <script>alert(1)</script>"
+    statuses = []
+    for _ in range(5):
+        resp = proxy_client.get(
+            "/api/admin/verify",
+            headers={"X-Admin-Key": "wrong_key", "X-Forwarded-For": malformed_header}
+        )
+        statuses.append(resp.status_code)
+
+    telemetry_collector.reset_admin_lockouts()
+
+    # Safely rejected and fails closed to peer 127.0.0.1, locking it out on attempt 5
+    assert statuses == [401, 401, 401, 401, 429]
+
+
+def test_proxy_missing_or_invalid_configuration(monkeypatch):
+    """
+    Missing or invalid TRUSTED_PROXIES configuration (e.g. invalid CIDRs)
+    fails closed to only loopback addresses.
+    """
+    monkeypatch.setenv("OPENDATALENS_ADMIN_KEY", TEST_ADMIN_KEY)
+    monkeypatch.setenv("TRUSTED_PROXIES", "invalid_cidr, not_an_ip, 300.300.300.300/32")
+    telemetry_collector.reset_admin_lockouts()
+
+    # Non-loopback peer (172.16.5.5) must NOT be trusted
+    client_non_loopback = TestClient(app, client=("172.16.5.5", 44444))
+
+    statuses = []
+    for i in range(6):
+        resp = client_non_loopback.get(
+            "/api/admin/verify",
+            headers={"X-Admin-Key": "wrong_key", "X-Forwarded-For": f"198.51.100.{i}"}
+        )
+        statuses.append(resp.status_code)
+
+    telemetry_collector.reset_admin_lockouts()
+
+    # Locked out on socket IP 172.16.5.5 on attempt 5
+    assert statuses[:4] == [401, 401, 401, 401]
+    assert statuses[4:] == [429, 429]
+
+
+def test_proxy_production_configuration(monkeypatch):
+    """
+    Production proxy configuration:
+    Declaring TRUSTED_PROXIES="10.50.0.0/16" correctly trusts Render/VPC internal proxies
+    in that subnet and extracts the forwarded client IP.
+    """
+    monkeypatch.setenv("OPENDATALENS_ADMIN_KEY", TEST_ADMIN_KEY)
+    monkeypatch.setenv("TRUSTED_PROXIES", "10.50.0.0/16")
+    telemetry_collector.reset_admin_lockouts()
+
+    # Render load balancer proxy in 10.50.0.0/16
+    render_proxy_client = TestClient(app, client=("10.50.12.34", 10000))
+    client_ip = "198.51.100.42"
+
+    statuses = []
+    for _ in range(5):
+        resp = render_proxy_client.get(
+            "/api/admin/verify",
+            headers={"X-Admin-Key": "wrong_key", "X-Forwarded-For": client_ip}
+        )
+        statuses.append(resp.status_code)
+
+    telemetry_collector.reset_admin_lockouts()
+
+    # Client IP 198.51.100.42 is identified and locked out on attempt 5
+    assert statuses == [401, 401, 401, 401, 429]
+
+
 # ==============================================================================
 # 8. CRITICAL MEMORY THROTTLING CHECKS
 # ==============================================================================
