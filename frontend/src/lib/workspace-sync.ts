@@ -39,7 +39,7 @@ class WorkspaceSyncService {
   private isSaving: boolean = false;
   private hasPendingSave: boolean = false;
   private pendingSnapshot: Partial<CompleteWorkspaceSnapshot> | null = null;
-  private activeSavePromise: Promise<boolean> | null = null;
+  private saveQueue: Promise<boolean> = Promise.resolve(true);
   private lastRejectedSnapshot: Partial<CompleteWorkspaceSnapshot> | null = null;
   private retryCount: number = 0;
   private readonly MAX_RETRIES: number = 3;
@@ -174,7 +174,7 @@ class WorkspaceSyncService {
   }
 
   /**
-   * Immediately flush pending changes to IndexedDB with atomic consistency checks and write concurrency lock.
+   * Immediately flush pending changes to IndexedDB with atomic consistency checks and sequential write queue.
    */
   public async flushSave(): Promise<boolean> {
     if (!this.hasPendingSave || !this.pendingSnapshot) {
@@ -182,26 +182,16 @@ class WorkspaceSyncService {
       return true;
     }
 
-    // Await any currently active save operation first
-    while (this.isSaving && this.activeSavePromise) {
-      try {
-        await this.activeSavePromise;
-      } catch {
-        // Continue to flush our pending work regardless of prior failure
+    // Chain execution onto sequential save queue to guarantee strict FIFO serialization
+    const flushPromise = this.saveQueue.then(async () => {
+      if (!this.hasPendingSave || !this.pendingSnapshot) {
+        return true;
       }
-    }
+      return this.executeFlush();
+    });
 
-    // If another concurrent execution already flushed our work while waiting, return true
-    if (!this.hasPendingSave || !this.pendingSnapshot) {
-      return true;
-    }
-
-    this.activeSavePromise = this.executeFlush();
-    try {
-      return await this.activeSavePromise;
-    } finally {
-      this.activeSavePromise = null;
-    }
+    this.saveQueue = flushPromise.catch(() => true);
+    return flushPromise;
   }
 
   private async executeFlush(): Promise<boolean> {

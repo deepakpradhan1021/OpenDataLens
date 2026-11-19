@@ -552,7 +552,16 @@ export default function VisualizePage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      (window as any).__opendatalens_activeChartData = activeChartData;
+      // Test-only hook: avoid exposing internal chart data globally in production unless explicitly in test mode
+      const isTestMode =
+        (typeof process !== "undefined" && process.env.NODE_ENV === "test") ||
+        (window as any).__OPENDATALENS_TEST_MODE__ === true;
+
+      if (isTestMode) {
+        (window as any).__opendatalens_activeChartData = activeChartData;
+      } else if ((window as any).__opendatalens_activeChartData) {
+        delete (window as any).__opendatalens_activeChartData;
+      }
     }
   }, [activeChartData]);
 
@@ -1011,6 +1020,7 @@ export default function VisualizePage() {
                         <button
                           key={agg}
                           type="button"
+                          data-testid={`agg-${agg}`}
                           onClick={() => setAggregation(agg)}
                           className={`p-1.5 rounded-lg uppercase font-mono text-center transition-all ${
                             aggregation === agg
@@ -1461,7 +1471,14 @@ export default function VisualizePage() {
                       </thead>
                       <tbody className="divide-y divide-border">
                         {activeChartData.map((row) => (
-                          <tr key={row.name} className="hover:bg-muted/40">
+                          <tr
+                            key={row.name}
+                            className="hover:bg-muted/40"
+                            data-testid="aggregation-row"
+                            data-category={row.name}
+                            data-value={row.value}
+                            data-count={row.count}
+                          >
                             <td className="p-2.5 font-semibold text-foreground truncate max-w-xs">{row.name}</td>
                             <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
                               {row.value.toLocaleString()}

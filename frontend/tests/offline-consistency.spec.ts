@@ -22,6 +22,7 @@ test.describe("Phase 7.2.2: Offline Consistency & Browser Persistence Verificati
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.addInitScript((wsId) => {
+      (window as any).__OPENDATALENS_TEST_MODE__ = true;
       if (!window.localStorage.getItem("opendatalens_workspace_id")) {
         window.localStorage.setItem("opendatalens_workspace_id", wsId);
       }
@@ -174,30 +175,93 @@ test.describe("Phase 7.2.2: Offline Consistency & Browser Persistence Verificati
     // Proves conclusively that all 10,200 rows were aggregated, NOT the 50 preview rows
     expect(totalObservations).toBe(10200);
 
-    // Verify DOM table rendering
+    // 17. Verify exact rendered DOM table values for 'mean' aggregation
     const tableRows = page.locator("table tbody tr");
-    await expect(tableRows).toHaveCount(5);
+    await expect(tableRows).toHaveCount(5, { timeout: 10000 });
+    const seenMeanCategories = new Set<string>();
+    let totalDomMeanObservations = 0;
+
     for (let i = 0; i < 5; i++) {
-      const rowText = await tableRows.nth(i).innerText();
-      expect(rowText).toContain("2040");
+      const row = tableRows.nth(i);
+      const catText = (await row.locator("td").nth(0).innerText()).trim();
+      const valText = (await row.locator("td").nth(1).innerText()).trim();
+      const countText = (await row.locator("td").nth(2).innerText()).trim();
+
+      const exp = expectedMap[catText];
+      expect(exp, `Category "${catText}" must match one of the expected categories in DOM`).toBeDefined();
+
+      const parsedValue = parseFloat(valText.replace(/,/g, ""));
+      const parsedCount = parseInt(countText.replace(/,/g, ""), 10);
+
+      // Assert exact category observation count in DOM
+      expect(parsedCount).toBe(exp.count);
+      // Assert exact mean aggregation in DOM with floating-point tolerance of ±0.1
+      expect(Math.abs(parsedValue - exp.mean)).toBeLessThanOrEqual(0.1);
+
+      seenMeanCategories.add(catText);
+      totalDomMeanObservations += parsedCount;
     }
 
-    // Now toggle aggregation operator to 'sum'
-    const sumBtn = page.getByRole("button", { name: "sum" }).first();
-    if (await sumBtn.isVisible()) {
-      await sumBtn.click();
-      await page.waitForTimeout(500);
+    // Conclusively verify all 5 distinct categories are rendered in DOM table
+    expect(seenMeanCategories.size).toBe(5);
+    for (const cat of Object.keys(expectedMap)) {
+      expect(seenMeanCategories.has(cat)).toBe(true);
+    }
+    expect(totalDomMeanObservations).toBe(10200);
 
-      const sumChartData = await page.evaluate(() => {
-        return (window as any).__opendatalens_activeChartData || [];
-      });
-      for (const item of sumChartData) {
-        const exp = expectedMap[item.name];
-        expect(exp).toBeDefined();
-        expect(item.count).toBe(exp.count);
-        // Explicit floating-point tolerance of ±1.0 for multi-million sum aggregation
-        expect(Math.abs(item.value - exp.sum)).toBeLessThanOrEqual(1.0);
-      }
+    // 18. Mandatory assertion: toggle aggregation operator to 'sum' (never silently skipped)
+    const sumBtn = page.getByRole("button", { name: /^sum$/i }).first();
+    await expect(sumBtn).toBeVisible({ timeout: 10000 });
+    await sumBtn.click();
+
+    // Wait for the DOM table cells to reflect the sum aggregation (values jump from ~7,650 to ~15,600,000)
+    await expect(tableRows.first().locator("td").nth(1)).toHaveText(/15,6/i, { timeout: 10000 });
+
+    // 19. Verify exact rendered DOM table values for 'sum' aggregation
+    const sumTableRows = page.locator("table tbody tr");
+    await expect(sumTableRows).toHaveCount(5, { timeout: 10000 });
+    const seenSumCategories = new Set<string>();
+    let totalDomSumObservations = 0;
+
+    for (let i = 0; i < 5; i++) {
+      const row = sumTableRows.nth(i);
+      const catText = (await row.locator("td").nth(0).innerText()).trim();
+      const valText = (await row.locator("td").nth(1).innerText()).trim();
+      const countText = (await row.locator("td").nth(2).innerText()).trim();
+
+      const exp = expectedMap[catText];
+      expect(exp, `Category "${catText}" must match one of the expected categories in sum DOM`).toBeDefined();
+
+      const parsedValue = parseFloat(valText.replace(/,/g, ""));
+      const parsedCount = parseInt(countText.replace(/,/g, ""), 10);
+
+      // Assert exact category observation count in DOM
+      expect(parsedCount).toBe(exp.count);
+      // Assert exact sum aggregation in DOM with floating-point tolerance of ±1.0
+      expect(Math.abs(parsedValue - exp.sum)).toBeLessThanOrEqual(1.0);
+
+      seenSumCategories.add(catText);
+      totalDomSumObservations += parsedCount;
+    }
+
+    // Conclusively verify all 5 distinct categories are rendered in sum DOM table
+    expect(seenSumCategories.size).toBe(5);
+    for (const cat of Object.keys(expectedMap)) {
+      expect(seenSumCategories.has(cat)).toBe(true);
+    }
+    expect(totalDomSumObservations).toBe(10200);
+
+    // Also assert exact values in the test-mode chart data object
+    const sumChartData = await page.evaluate(() => {
+      return (window as any).__opendatalens_activeChartData || [];
+    });
+    expect(sumChartData.length).toBe(5);
+    for (const item of sumChartData) {
+      const exp = expectedMap[item.name];
+      expect(exp).toBeDefined();
+      expect(item.count).toBe(exp.count);
+      // Explicit floating-point tolerance of ±1.0 for multi-million sum aggregation
+      expect(Math.abs(item.value - exp.sum)).toBeLessThanOrEqual(1.0);
     }
   });
 
@@ -619,5 +683,21 @@ test.describe("Phase 7.2.2: Offline Consistency & Browser Persistence Verificati
     // Final dataset must reflect the latest consistent snapshot
     expect(concurrencyResult.finalRowCount).toBe(2);
     expect(concurrencyResult.finalCsv).toContain("x\n1\n2");
+  });
+
+  test("10. Security: window.__opendatalens_activeChartData is never exposed without explicit test mode", async ({ browser }) => {
+    // Open isolated browser context without the test mode init script
+    const freshContext = await browser.newContext();
+    const cleanPage = await freshContext.newPage();
+    try {
+      await cleanPage.goto("/visualize");
+      const isExposed = await cleanPage.evaluate(() => {
+        return Boolean((window as any).__opendatalens_activeChartData);
+      });
+      expect(isExposed).toBe(false);
+    } finally {
+      await cleanPage.close();
+      await freshContext.close();
+    }
   });
 });
