@@ -550,6 +550,12 @@ export default function VisualizePage() {
     return computedChartData;
   }, [serverChartResponse, chartType, xAxisCol, computedChartData]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).__opendatalens_activeChartData = activeChartData;
+    }
+  }, [activeChartData]);
+
   const activeCorrelationMatrix = useMemo(() => {
     if (
       serverChartResponse &&

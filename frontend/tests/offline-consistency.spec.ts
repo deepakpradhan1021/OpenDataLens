@@ -127,6 +127,78 @@ test.describe("Phase 7.2.2: Offline Consistency & Browser Persistence Verificati
     // Verify offline chart container is rendered
     const chartRendered = page.locator(".recharts-wrapper, svg").first();
     await expect(chartRendered).toBeVisible({ timeout: 10000 });
+
+    // 16. Configure chart dimensions: X = category, Y = amount
+    const selects = page.locator("div.space-y-4 select");
+    const xAxisSelect = selects.nth(0);
+    const yAxisSelect = selects.nth(1);
+
+    await expect(xAxisSelect).toBeVisible({ timeout: 10000 });
+    await xAxisSelect.selectOption("category");
+    await expect(yAxisSelect).toBeVisible({ timeout: 10000 });
+    await yAxisSelect.selectOption("amount");
+
+    // Wait for client aggregation to compute over all 10,200 rows
+    await page.waitForTimeout(600);
+
+    // 17. Verify Mathematical Aggregation Parity on Full Offline Dataset (10,200 rows)
+    // Expected exact values for 10,200 rows across categories:
+    // Alpha:   count: 2040, sum: 15613650.00, mean: 7653.75
+    // Beta:    count: 2040, sum: 15601410.00, mean: 7647.75
+    // Gamma:   count: 2040, sum: 15604470.00, mean: 7649.25
+    // Delta:   count: 2040, sum: 15607530.00, mean: 7650.75
+    // Epsilon: count: 2040, sum: 15610590.00, mean: 7652.25
+    const expectedMap: Record<string, { count: number; mean: number; sum: number }> = {
+      Alpha: { count: 2040, mean: 7653.75, sum: 15613650.00 },
+      Beta: { count: 2040, mean: 7647.75, sum: 15601410.00 },
+      Gamma: { count: 2040, mean: 7649.25, sum: 15604470.00 },
+      Delta: { count: 2040, mean: 7650.75, sum: 15607530.00 },
+      Epsilon: { count: 2040, mean: 7652.25, sum: 15610590.00 },
+    };
+
+    const offlineChartData = await page.evaluate(() => {
+      return (window as any).__opendatalens_activeChartData || [];
+    });
+
+    expect(offlineChartData.length).toBe(5);
+
+    let totalObservations = 0;
+    for (const item of offlineChartData) {
+      const exp = expectedMap[item.name];
+      expect(exp).toBeDefined();
+      expect(item.count).toBe(exp.count);
+      // Explicit floating-point tolerance of ±0.1 for mean aggregation
+      expect(Math.abs(item.value - exp.mean)).toBeLessThanOrEqual(0.1);
+      totalObservations += item.count;
+    }
+    // Proves conclusively that all 10,200 rows were aggregated, NOT the 50 preview rows
+    expect(totalObservations).toBe(10200);
+
+    // Verify DOM table rendering
+    const tableRows = page.locator("table tbody tr");
+    await expect(tableRows).toHaveCount(5);
+    for (let i = 0; i < 5; i++) {
+      const rowText = await tableRows.nth(i).innerText();
+      expect(rowText).toContain("2040");
+    }
+
+    // Now toggle aggregation operator to 'sum'
+    const sumBtn = page.getByRole("button", { name: "sum" }).first();
+    if (await sumBtn.isVisible()) {
+      await sumBtn.click();
+      await page.waitForTimeout(500);
+
+      const sumChartData = await page.evaluate(() => {
+        return (window as any).__opendatalens_activeChartData || [];
+      });
+      for (const item of sumChartData) {
+        const exp = expectedMap[item.name];
+        expect(exp).toBeDefined();
+        expect(item.count).toBe(exp.count);
+        // Explicit floating-point tolerance of ±1.0 for multi-million sum aggregation
+        expect(Math.abs(item.value - exp.sum)).toBeLessThanOrEqual(1.0);
+      }
+    }
   });
 
   test("2. Failed CSV download never combines new records with an older CSV snapshot", async ({ page }) => {
@@ -329,13 +401,223 @@ test.describe("Phase 7.2.2: Offline Consistency & Browser Persistence Verificati
     const guardFires = await page.evaluate(() => {
       const sync = (window as any).__opendatalens_workspaceSync;
       sync.isSaving = true;
-      let defaultPrevented = false;
       const event = new Event("beforeunload", { cancelable: true });
       window.dispatchEvent(event);
-      defaultPrevented = event.defaultPrevented || Boolean((event as any).returnValue);
+      const defaultPrevented = event.defaultPrevented;
       sync.isSaving = false;
       return defaultPrevented;
     });
     expect(guardFires).toBe(true);
+  });
+
+  test("6. Regression: Benchmark CSV network failure preserves cache without quota misclassification", async ({ page }) => {
+    test.setTimeout(45000);
+    await page.goto("/explorer");
+
+    // Intercept dataset-csv download to fail with 500
+    await page.route("**/api/reports/dataset-csv**", (route) => {
+      route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Simulated benchmark download network failure" }),
+      });
+    });
+
+    // Mount Iris benchmark
+    const mountBtn = page.locator("button:has-text('Mount')").first();
+    await expect(mountBtn).toBeVisible({ timeout: 15000 });
+    await mountBtn.click();
+
+    // Verify error notification is surfaced
+    await expect(page.getByText(/Could not download full dataset CSV|Synchronization failed/i).first()).toBeVisible({ timeout: 15000 });
+
+    // Verify IndexedDB was NOT marked with raw_csv_omitted_for_quota: true
+    const checkResult = await page.evaluate(async () => {
+      const localDB = (window as any).__opendatalens_localDB;
+      const sync = (window as any).__opendatalens_workspaceSync;
+      const wsId = window.localStorage.getItem("opendatalens_workspace_id") || "default";
+      const ds = await localDB?.getDataset(wsId);
+      return {
+        hasPendingWork: sync?.hasPendingWork() || false,
+        raw_csv_omitted_for_quota: Boolean(ds?.raw_csv_omitted_for_quota),
+      };
+    });
+
+    expect(checkResult.raw_csv_omitted_for_quota).toBe(false);
+    expect(checkResult.hasPendingWork).toBe(false);
+  });
+
+  test("7. Regression: Converted non-CSV download failure preserves cache without quota misclassification", async ({ page }) => {
+    test.setTimeout(45000);
+    await page.goto("/explorer");
+    await page.locator("[data-testid='tab-upload']").click();
+
+    // Intercept dataset-csv download to fail with 500
+    await page.route("**/api/reports/dataset-csv**", (route) => {
+      route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Simulated converted CSV network failure" }),
+      });
+    });
+
+    // Upload a JSON file (non-CSV that triggers backend conversion and CSV fetch)
+    const jsonContent = JSON.stringify([
+      { id: 1, name: "Item A", score: 95 },
+      { id: 2, name: "Item B", score: 88 },
+    ]);
+    const fileUploadInput = page.locator("input[type='file']").first();
+    await fileUploadInput.setInputFiles({
+      name: "sample_dataset.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(jsonContent, "utf-8"),
+    });
+
+    // Verify warning/error surfaced
+    await expect(page.getByText(/Could not download converted dataset CSV|Synchronization failed/i).first()).toBeVisible({ timeout: 15000 });
+
+    // Verify IndexedDB does NOT have raw_csv_omitted_for_quota: true
+    const checkResult = await page.evaluate(async () => {
+      const localDB = (window as any).__opendatalens_localDB;
+      const sync = (window as any).__opendatalens_workspaceSync;
+      const wsId = window.localStorage.getItem("opendatalens_workspace_id") || "default";
+      const ds = await localDB?.getDataset(wsId);
+      return {
+        hasPendingWork: sync?.hasPendingWork() || false,
+        raw_csv_omitted_for_quota: Boolean(ds?.raw_csv_omitted_for_quota),
+      };
+    });
+
+    expect(checkResult.raw_csv_omitted_for_quota).toBe(false);
+    expect(checkResult.hasPendingWork).toBe(false);
+  });
+
+  test("8. Regression: Inconsistent dataset rejected safely without permanent stuck pending-save or navigation lock", async ({ page }) => {
+    await page.goto("/explorer");
+
+    const result = await page.evaluate(async () => {
+      const sync = (window as any).__opendatalens_workspaceSync;
+      const wsId = window.localStorage.getItem("opendatalens_workspace_id") || "default";
+
+      // 1. Attempt to save an inconsistent dataset (new records with NO raw_csv and NO quota flag)
+      const saveResult = await sync.saveDatasetSnapshotImmediately({
+        workspace_id: wsId,
+        metadata: { id: wsId, name: "Inconsistent Update" },
+        columns: [{ name: "c1", dtype: "int64", non_null_count: 1, null_count: 0, unique_count: 1 }],
+        records: [{ c1: 999 }],
+        total_rows: 1,
+        total_cols: 1,
+        memory_mb: 0.1,
+        raw_csv: undefined,
+        raw_csv_omitted_for_quota: false,
+        updated_at: new Date().toISOString(),
+      });
+
+      // 2. Check synchronization state
+      const hasPending = sync.hasPendingWork();
+      const isSyncing = sync.isSynchronizing();
+      const rejected = sync.getLastRejectedSnapshot();
+
+      // 3. Dispatch beforeunload event to confirm navigation is NOT blocked
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+
+      return {
+        saveResult,
+        hasPending,
+        isSyncing,
+        hasRejectedSnapshot: Boolean(rejected && rejected.dataset),
+        defaultPrevented: event.defaultPrevented,
+      };
+    });
+
+    // Inconsistent save must be rejected
+    expect(result.saveResult).toBe(false);
+    // Must NOT be stuck in pending state
+    expect(result.hasPending).toBe(false);
+    expect(result.isSyncing).toBe(false);
+    // Rejected snapshot is safely preserved
+    expect(result.hasRejectedSnapshot).toBe(true);
+    // Navigation guard must NOT be triggered when there is no real pending work
+    expect(result.defaultPrevented).toBe(false);
+  });
+
+  test("9. Regression: Overlapping and concurrent immediate/debounced saves execute safely with final outcome", async ({ page }) => {
+    await page.goto("/explorer");
+
+    const concurrencyResult = await page.evaluate(async () => {
+      const sync = (window as any).__opendatalens_workspaceSync;
+      const wsId = window.localStorage.getItem("opendatalens_workspace_id") || "default";
+
+      const validSnapshot1 = {
+        workspace_id: wsId,
+        metadata: { id: wsId, name: "Valid Batch 1" },
+        columns: [{ name: "x", dtype: "int64", non_null_count: 1, null_count: 0, unique_count: 1 }],
+        records: [{ x: 1 }],
+        total_rows: 1,
+        total_cols: 1,
+        memory_mb: 0.1,
+        raw_csv: "x\n1\n",
+        raw_csv_omitted_for_quota: false,
+        updated_at: new Date().toISOString(),
+      };
+
+      const validSnapshot2 = {
+        workspace_id: wsId,
+        metadata: { id: wsId, name: "Valid Batch 2" },
+        columns: [{ name: "x", dtype: "int64", non_null_count: 2, null_count: 0, unique_count: 2 }],
+        records: [{ x: 1 }, { x: 2 }],
+        total_rows: 2,
+        total_cols: 1,
+        memory_mb: 0.1,
+        raw_csv: "x\n1\n2\n",
+        raw_csv_omitted_for_quota: false,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Trigger debounced save first
+      sync.queueAutoSave({
+        visualizations: {
+          workspace_id: wsId,
+          active_chart_type: "bar",
+          x_axis_col: "x",
+          y_axis_col: "",
+          aggregation: "count",
+          bins: 10,
+          bin_numeric: true,
+          sort_by: "auto",
+          top_n: 15,
+          saved_presets: [],
+          updated_at: new Date().toISOString(),
+        },
+      }, 500);
+
+      // Concurrently trigger two immediate saves
+      const [res1, res2] = await Promise.all([
+        sync.saveDatasetSnapshotImmediately(validSnapshot1),
+        sync.saveDatasetSnapshotImmediately(validSnapshot2),
+      ]);
+
+      const localDB = (window as any).__opendatalens_localDB;
+      const finalDataset = await localDB.getDataset(wsId);
+
+      return {
+        res1,
+        res2,
+        hasPending: sync.hasPendingWork(),
+        isSyncing: sync.isSynchronizing(),
+        finalRowCount: finalDataset?.total_rows,
+        finalCsv: finalDataset?.raw_csv,
+      };
+    });
+
+    // Both concurrent immediate saves must resolve true
+    expect(concurrencyResult.res1).toBe(true);
+    expect(concurrencyResult.res2).toBe(true);
+    expect(concurrencyResult.hasPending).toBe(false);
+    expect(concurrencyResult.isSyncing).toBe(false);
+    // Final dataset must reflect the latest consistent snapshot
+    expect(concurrencyResult.finalRowCount).toBe(2);
+    expect(concurrencyResult.finalCsv).toContain("x\n1\n2");
   });
 });

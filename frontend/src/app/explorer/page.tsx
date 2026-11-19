@@ -71,20 +71,6 @@ export default function ExplorerPage() {
       .then((data) => {
         setActiveDataset(data);
         setIsOfflineMode(false);
-        if (data) {
-          workspaceSync.queueAutoSave({
-            dataset: {
-              workspace_id: data.session_id,
-              metadata: data.metadata,
-              columns: data.columns,
-              records: data.records,
-              total_rows: data.total_rows,
-              total_cols: data.total_cols,
-              memory_mb: data.memory_mb,
-              updated_at: new Date().toISOString(),
-            },
-          });
-        }
       })
       .catch(async () => {
         // Backend sleeping or offline: safely restore active workspace from browser IndexedDB
@@ -120,34 +106,34 @@ export default function ExplorerPage() {
       setIsOfflineMode(false);
 
       // Fetch and persist full raw CSV in IndexedDB atomically
-      api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
-        workspaceSync.saveDatasetSnapshotImmediately({
-          workspace_id: data.session_id,
-          metadata: data.metadata,
-          columns: data.columns,
-          records: data.records,
-          total_rows: data.total_rows,
-          total_cols: data.total_cols,
-          memory_mb: data.memory_mb,
-          raw_csv: fullCsv,
-          updated_at: new Date().toISOString(),
-        });
-      }).catch((e) => {
-        console.warn("Background raw CSV persistence skipped:", e);
-        // If CSV fetch fails, intentionally save preview-only metadata
-        workspaceSync.saveDatasetSnapshotImmediately({
-          workspace_id: data.session_id,
-          metadata: data.metadata,
-          columns: data.columns,
-          records: data.records,
-          total_rows: data.total_rows,
-          total_cols: data.total_cols,
-          memory_mb: data.memory_mb,
-          raw_csv: null,
-          raw_csv_omitted_for_quota: true,
-          updated_at: new Date().toISOString(),
-        });
-      });
+      try {
+        const fullCsv = await api.downloadDatasetCsvText(data.session_id);
+        if (typeof fullCsv === "string" && fullCsv.length > 0) {
+          await workspaceSync.saveDatasetSnapshotImmediately({
+            workspace_id: data.session_id,
+            metadata: data.metadata,
+            columns: data.columns,
+            records: data.records,
+            total_rows: data.total_rows,
+            total_cols: data.total_cols,
+            memory_mb: data.memory_mb,
+            raw_csv: fullCsv,
+            raw_csv_omitted_for_quota: false,
+            is_full_dataset: true,
+            is_preview_only: false,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } catch (e: any) {
+        console.warn("Background raw CSV persistence failed:", e);
+        // Network/API failure must never be treated as a quota error.
+        // Previous consistent snapshot is preserved without overwriting.
+        workspaceSync.setStatus(
+          "error",
+          "Synchronization failed: could not download full dataset CSV. Previous local snapshot preserved."
+        );
+        setError("Notice: Could not download full dataset CSV for offline synchronization. Previous offline snapshot preserved.");
+      }
 
       setSuccessMsg(`Benchmark '${data.metadata.name}' loaded successfully (${data.total_rows.toLocaleString()} rows, ${data.total_cols} cols).`);
     } catch (err: any) {
@@ -199,33 +185,32 @@ export default function ExplorerPage() {
       setIsOfflineMode(false);
 
       // Fetch and persist full raw CSV atomically
-      api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
-        workspaceSync.saveDatasetSnapshotImmediately({
-          workspace_id: data.session_id,
-          metadata: data.metadata,
-          columns: data.columns,
-          records: data.records,
-          total_rows: data.total_rows,
-          total_cols: data.total_cols,
-          memory_mb: data.memory_mb,
-          raw_csv: fullCsv,
-          updated_at: new Date().toISOString(),
-        });
-      }).catch((e) => {
-        console.warn("Background raw CSV persistence skipped:", e);
-        workspaceSync.saveDatasetSnapshotImmediately({
-          workspace_id: data.session_id,
-          metadata: data.metadata,
-          columns: data.columns,
-          records: data.records,
-          total_rows: data.total_rows,
-          total_cols: data.total_cols,
-          memory_mb: data.memory_mb,
-          raw_csv: null,
-          raw_csv_omitted_for_quota: true,
-          updated_at: new Date().toISOString(),
-        });
-      });
+      try {
+        const fullCsv = await api.downloadDatasetCsvText(data.session_id);
+        if (typeof fullCsv === "string" && fullCsv.length > 0) {
+          await workspaceSync.saveDatasetSnapshotImmediately({
+            workspace_id: data.session_id,
+            metadata: data.metadata,
+            columns: data.columns,
+            records: data.records,
+            total_rows: data.total_rows,
+            total_cols: data.total_cols,
+            memory_mb: data.memory_mb,
+            raw_csv: fullCsv,
+            raw_csv_omitted_for_quota: false,
+            is_full_dataset: true,
+            is_preview_only: false,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } catch (e: any) {
+        console.warn("Background raw CSV persistence failed:", e);
+        workspaceSync.setStatus(
+          "error",
+          "Synchronization failed: could not download full dataset CSV. Previous local snapshot preserved."
+        );
+        setError("Notice: Could not download full dataset CSV for offline synchronization. Previous offline snapshot preserved.");
+      }
 
       setSuccessMsg(`Streamed '${datasetName}' via HF Dataset API (${data.total_rows.toLocaleString()} rows).`);
     } catch (err: any) {
@@ -304,7 +289,7 @@ export default function ExplorerPage() {
       setActiveDataset(data);
       setIsOfflineMode(false);
       if (rawCsvText) {
-        workspaceSync.saveDatasetSnapshotImmediately({
+        await workspaceSync.saveDatasetSnapshotImmediately({
           workspace_id: data.session_id,
           metadata: data.metadata,
           columns: data.columns,
@@ -314,38 +299,38 @@ export default function ExplorerPage() {
           memory_mb: data.memory_mb,
           raw_csv: rawCsvText,
           raw_csv_omitted_for_quota: false,
+          is_full_dataset: true,
+          is_preview_only: false,
           updated_at: new Date().toISOString(),
         });
       } else {
         // If non-CSV file (e.g. Excel, JSON, PDF), fetch converted CSV from backend to persist full dataset
-        api.downloadDatasetCsvText(data.session_id).then((fullCsv) => {
-          workspaceSync.saveDatasetSnapshotImmediately({
-            workspace_id: data.session_id,
-            metadata: data.metadata,
-            columns: data.columns,
-            records: data.records,
-            total_rows: data.total_rows,
-            total_cols: data.total_cols,
-            memory_mb: data.memory_mb,
-            raw_csv: fullCsv,
-            raw_csv_omitted_for_quota: false,
-            updated_at: new Date().toISOString(),
-          });
-        }).catch((e) => {
-          console.warn("Background raw CSV fetch skipped:", e);
-          workspaceSync.saveDatasetSnapshotImmediately({
-            workspace_id: data.session_id,
-            metadata: data.metadata,
-            columns: data.columns,
-            records: data.records,
-            total_rows: data.total_rows,
-            total_cols: data.total_cols,
-            memory_mb: data.memory_mb,
-            raw_csv: null,
-            raw_csv_omitted_for_quota: true,
-            updated_at: new Date().toISOString(),
-          });
-        });
+        try {
+          const fullCsv = await api.downloadDatasetCsvText(data.session_id);
+          if (typeof fullCsv === "string" && fullCsv.length > 0) {
+            await workspaceSync.saveDatasetSnapshotImmediately({
+              workspace_id: data.session_id,
+              metadata: data.metadata,
+              columns: data.columns,
+              records: data.records,
+              total_rows: data.total_rows,
+              total_cols: data.total_cols,
+              memory_mb: data.memory_mb,
+              raw_csv: fullCsv,
+              raw_csv_omitted_for_quota: false,
+              is_full_dataset: true,
+              is_preview_only: false,
+              updated_at: new Date().toISOString(),
+            });
+          }
+        } catch (e: any) {
+          console.warn("Background converted CSV download failed:", e);
+          workspaceSync.setStatus(
+            "error",
+            "Synchronization failed: could not download converted dataset CSV. Previous local snapshot preserved."
+          );
+          setError("Notice: Could not download converted dataset CSV for offline caching. Previous offline snapshot preserved.");
+        }
       }
 
       const displayExt = ext.replace(".", "").toUpperCase();

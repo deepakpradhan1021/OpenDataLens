@@ -39,6 +39,10 @@ class WorkspaceSyncService {
   private isSaving: boolean = false;
   private hasPendingSave: boolean = false;
   private pendingSnapshot: Partial<CompleteWorkspaceSnapshot> | null = null;
+  private activeSavePromise: Promise<boolean> | null = null;
+  private lastRejectedSnapshot: Partial<CompleteWorkspaceSnapshot> | null = null;
+  private retryCount: number = 0;
+  private readonly MAX_RETRIES: number = 3;
   private lastSavedAt: Date | null = null;
   private currentState: SaveStatusState = "saved";
   private currentMessage: string = "All changes saved locally";
@@ -51,9 +55,9 @@ class WorkspaceSyncService {
         this.currentMessage = "Local storage unavailable in this browser";
       }
 
-      // Requirement 7: Prevent navigation or refresh from silently losing pending changes
+      // Requirement: Prevent navigation or refresh from silently losing real pending changes
       window.addEventListener("beforeunload", (e) => {
-        if (this.hasPendingSave || this.isSaving) {
+        if (this.hasPendingWork()) {
           e.preventDefault();
           e.returnValue = "Changes are currently saving to local storage. Leaving now may result in lost changes.";
           return e.returnValue;
@@ -104,7 +108,19 @@ class WorkspaceSyncService {
   }
 
   public isSynchronizing(): boolean {
-    return this.isSaving || this.hasPendingSave;
+    return this.isSaving || (this.hasPendingSave && this.pendingSnapshot !== null);
+  }
+
+  public hasPendingWork(): boolean {
+    return this.isSaving || (this.hasPendingSave && this.pendingSnapshot !== null);
+  }
+
+  public getLastRejectedSnapshot(): Partial<CompleteWorkspaceSnapshot> | null {
+    return this.lastRejectedSnapshot;
+  }
+
+  public clearRejectedSnapshot(): void {
+    this.lastRejectedSnapshot = null;
   }
 
   /**
@@ -117,18 +133,18 @@ class WorkspaceSyncService {
     }
 
     this.setStatus("unsaved", "Unsaved changes");
-    this.hasPendingSave = true;
     this.pendingSnapshot = {
       ...(this.pendingSnapshot || {}),
       ...partial,
     };
+    this.hasPendingSave = true;
 
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
 
     this.debounceTimer = setTimeout(() => {
-      this.flushSave();
+      this.flushSave().catch((err) => console.warn("[WorkspaceSync] Debounced flush error:", err));
     }, debounceMs);
   }
 
@@ -162,17 +178,42 @@ class WorkspaceSyncService {
    */
   public async flushSave(): Promise<boolean> {
     if (!this.hasPendingSave || !this.pendingSnapshot) {
+      this.hasPendingSave = false;
       return true;
     }
 
-    if (this.isSaving) {
-      // Re-trigger after current save finishes
-      return false;
+    // Await any currently active save operation first
+    while (this.isSaving && this.activeSavePromise) {
+      try {
+        await this.activeSavePromise;
+      } catch {
+        // Continue to flush our pending work regardless of prior failure
+      }
+    }
+
+    // If another concurrent execution already flushed our work while waiting, return true
+    if (!this.hasPendingSave || !this.pendingSnapshot) {
+      return true;
+    }
+
+    this.activeSavePromise = this.executeFlush();
+    try {
+      return await this.activeSavePromise;
+    } finally {
+      this.activeSavePromise = null;
+    }
+  }
+
+  private async executeFlush(): Promise<boolean> {
+    if (!this.hasPendingSave || !this.pendingSnapshot) {
+      this.hasPendingSave = false;
+      return true;
     }
 
     this.isSaving = true;
     this.setStatus("saving", "Saving to local browser storage...");
 
+    // Take pending snapshot immediately and synchronously before any async await
     const snapshotToSave = { ...this.pendingSnapshot };
     this.pendingSnapshot = null;
     this.hasPendingSave = false;
@@ -218,12 +259,12 @@ class WorkspaceSyncService {
             "[WorkspaceSync] Inconsistent dataset save rejected: new records provided without raw_csv or explicit quota flag. " +
             "Previous consistent snapshot preserved to prevent stale CSV drift."
           );
+          // Preserve rejected snapshot safely for inspection/retry
+          this.lastRejectedSnapshot = snapshotToSave;
           this.setStatus(
             "error",
             "Synchronization failed: updated CSV missing. Previous consistent local cache preserved."
           );
-          this.hasPendingSave = true; // Mark as pending so retry or next save can resolve it
-          this.isSaving = false;
           return false;
         }
       } else if (existingDataset) {
@@ -263,6 +304,8 @@ class WorkspaceSyncService {
 
       await localDB.saveFullWorkspace(fullSnapshot);
       this.lastSavedAt = new Date();
+      this.retryCount = 0;
+      this.lastRejectedSnapshot = null;
 
       const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
       if (isOffline) {
@@ -274,10 +317,13 @@ class WorkspaceSyncService {
     } catch (err: any) {
       console.error("[WorkspaceSync] Failed to persist workspace to IndexedDB:", err);
 
+      const isQuotaError = err.name === "QuotaExceededError" || (typeof err.message === "string" && err.message.toLowerCase().includes("quota"));
+
       // Safe fallback on quota error: intentionally retry saving with raw_csv omitted and explicit quota flag
-      if ((err.name === "QuotaExceededError" || err.message?.includes("quota")) && fullSnapshot && fullSnapshot.dataset?.raw_csv) {
+      if (isQuotaError && fullSnapshot && fullSnapshot.dataset?.raw_csv && this.retryCount < this.MAX_RETRIES) {
+        this.retryCount++;
         try {
-          console.warn("[WorkspaceSync] Quota limit encountered. Retrying save with intentional quota degradation...");
+          console.warn(`[WorkspaceSync] Quota limit encountered (attempt ${this.retryCount}/${this.MAX_RETRIES}). Retrying save with intentional quota degradation...`);
           const degradedSnapshot: CompleteWorkspaceSnapshot = {
             ...fullSnapshot,
             dataset: {
@@ -297,7 +343,11 @@ class WorkspaceSyncService {
         }
       }
 
-      if (err.name === "QuotaExceededError") {
+      // Clear pending state on unrecoverable failure
+      this.pendingSnapshot = null;
+      this.hasPendingSave = false;
+
+      if (isQuotaError) {
         this.setStatus("error", "Storage quota exceeded. Free up browser space.");
       } else {
         this.setStatus("error", `Save failed: ${err.message || "IndexedDB write error"}`);
@@ -305,9 +355,11 @@ class WorkspaceSyncService {
       return false;
     } finally {
       this.isSaving = false;
-      // If new changes arrived while saving, queue another flush
-      if (this.hasPendingSave) {
-        setTimeout(() => this.flushSave(), 200);
+      // If new changes arrived while saving, queue another flush safely
+      if (this.hasPendingSave && this.pendingSnapshot) {
+        setTimeout(() => {
+          this.flushSave().catch((e) => console.warn("[WorkspaceSync] Follow-up flush error:", e));
+        }, 50);
       }
     }
   }
@@ -361,9 +413,6 @@ class WorkspaceSyncService {
 
     await localDB.saveFullWorkspace(data);
     return freshId;
-  }
-  public hasPendingWork(): boolean {
-    return this.hasPendingSave || this.isSaving;
   }
 }
 
