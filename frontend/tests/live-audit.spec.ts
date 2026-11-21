@@ -35,8 +35,16 @@ test.describe("OpenDataLens Live Production Audit & Full User Journey", () => {
       const header = page.locator("header");
       await expect(header.getByRole("link", { name: "Dashboard" })).toBeVisible();
       await expect(header.getByRole("link", { name: "Explorer" })).toBeVisible();
-      await expect(header.getByRole("link", { name: "ML Studio" })).toBeVisible();
-      await expect(header.getByRole("link", { name: "Data Drift" })).toBeVisible();
+      const moreBtn = header.getByRole("button", { name: /More/i });
+      if (await moreBtn.isVisible()) {
+        await moreBtn.click();
+        await expect(header.getByRole("link", { name: "ML Studio" })).toBeVisible();
+        await expect(header.getByRole("link", { name: "Data Drift" })).toBeVisible();
+        await page.keyboard.press("Escape");
+      } else {
+        await expect(header.getByRole("link", { name: "ML Studio" })).toBeVisible();
+        await expect(header.getByRole("link", { name: "Data Drift" })).toBeVisible();
+      }
     }
 
     // --- STEP B: INITIAL DASHBOARD (Empty State) ---
